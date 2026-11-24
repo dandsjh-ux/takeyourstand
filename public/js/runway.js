@@ -24,7 +24,7 @@ export class Runway {
     const scene = new THREE.Scene();
     this.scene = scene;
     scene.environment = stage.envTex;
-    scene.environmentIntensity = 0.45;
+    scene.environmentIntensity = 0.3;
     scene.fog = new THREE.Fog('#efd6ae', 24, 70);
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
     this.buildWorld();
@@ -47,8 +47,8 @@ export class Runway {
     const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialGlow('#fff1c4'), transparent: true, depthWrite: false, fog: false }));
     sun.position.set(-30, 26, -90); sun.scale.set(40, 40, 1); s.add(sun);
 
-    s.add(new THREE.HemisphereLight('#ffeccc', '#9c7a52', 1.0));
-    const sunL = new THREE.DirectionalLight('#ffe0ad', 2.6);
+    s.add(new THREE.HemisphereLight('#ffeccc', '#9c7a52', 0.5));
+    const sunL = new THREE.DirectionalLight('#ffe0ad', 1.35);
     sunL.position.set(-6, 10, 6);
     sunL.castShadow = true;
     sunL.shadow.mapSize.set(1024, 1024);
@@ -56,7 +56,7 @@ export class Runway {
     sunL.shadow.bias = -0.0006;
     s.add(sunL); s.add(sunL.target);
     this.sunL = sunL;
-    const front = new THREE.DirectionalLight('#fff7ec', 0.9); front.position.set(1, 3, 10); s.add(front);
+    const front = new THREE.DirectionalLight('#fff7ec', 0.4); front.position.set(1, 3, 10); s.add(front);
 
     // ground
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#cdb487', roughness: 1 }));

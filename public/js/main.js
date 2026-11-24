@@ -3,7 +3,7 @@ import { Stage } from './stage.js';
 import { Studio } from './studio.js';
 import { Runway, timeline } from './runway.js';
 import {
-  CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, EYE_COLORS, HAIR_STYLES, POSES, WALKS, POSE_MAP, WALK_MAP,
+  CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, EYE_COLORS, HAIR_STYLES, hairFor, POSES, WALKS, POSE_MAP, WALK_MAP,
   MAX_POSES, PRAYER_MAX, PRAYER_STARTERS, ARMOR_SLOTS, defaultOutfit, priceFor, armorCount,
 } from './catalog.js';
 import { $, $$, h, toast, modal, closeModal, modalOpen, fmtTime, unlockAudio, sfx } from './ui.js';
@@ -114,6 +114,8 @@ const paintBody = () => $$('.body-opt').forEach((b) => b.classList.toggle('on', 
 paintBody();
 $$('.body-opt').forEach((b) => b.addEventListener('click', () => { S.body = b.dataset.body; LS.set('tys_body', S.body); paintBody(); sfx.tap(); }));
 $('#join-code').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); });
+const TEAM_IDEAS = ['Shield Bearers', 'Salt & Light', 'Mighty Sparrows', 'Faith Warriors', 'Lights of the World', 'Gospel Runners', 'Truth Seekers', 'Peacemakers'];
+$('#team-ideas').replaceChildren(...TEAM_IDEAS.map((n) => h('button.chip', { type: 'button', on: { click: () => { $('#join-name').value = n; sfx.tap(); } } }, n)));
 
 $('#join-form').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -121,7 +123,7 @@ $('#join-form').addEventListener('submit', (e) => {
   const code = $('#join-code').value.trim().toUpperCase();
   const name = $('#join-name').value.trim();
   if (code.length !== 4) return showJoinError('The game code has 4 letters.');
-  if (!name) return showJoinError('Please type your name.');
+  if (!name) return showJoinError('Please type your team name.');
   LS.set('tys_name', name);
   joinGame(code, name, S.body);
 });
@@ -131,7 +133,7 @@ function joinGame(code, name, body, opts = {}) {
   if (typeof opts === 'boolean') opts = { silent: opts };
   const { silent = false, reconnect = false } = opts;
   const id = idFor(code, name);
-  socket.emit('player:join', { code, clientId: id, name, body, team: LS.get('tys_team') }, (res) => {
+  socket.emit('player:join', { code, clientId: id, name, body }, (res) => {
     if (!res?.ok) {
       if (!silent) showJoinError(res?.error || 'Could not join.');
       else {
@@ -276,10 +278,8 @@ function onState(st) {
   // new round → server reset the wardrobe
   const me = st.players.find((p) => p.id === S.me?.playerId);
   if (me) {
-    const team = st.teams.find((t) => t.id === me.team);
     $('#me-name').textContent = me.name;
-    $('#me-team-dot').style.background = team?.color || '#999';
-    if (team) LS.set('tys_team', team.id);
+    $('#me-team-dot').style.background = me.color || '#999';
   }
   if (st.phase === 'lobby' || st.phase === 'styling') {
     if (S.lastScreen !== 'play') { showScreen('play'); S.cat = st.phase === 'lobby' ? 'me' : S.cat; selectCat(S.cat); }
@@ -290,9 +290,9 @@ function onState(st) {
         h('div.modal-actions', h('button.btn.primary', { on: { click: closeModal } }, 'Let\'s go!')));
     }
     $('#lobby-banner').classList.toggle('hidden', st.phase !== 'lobby');
-    renderTeamPick();
+    renderTeamInfo();
     renderTabs();
-    const teamSig = JSON.stringify(st.teams.map((t) => [t.name, t.named]));
+    const teamSig = me ? `${me.name}|${me.members}` : '';
     if (prevPhase !== st.phase || (S.cat === 'me' && teamSig !== S.teamSig)) renderPanel();
     S.teamSig = teamSig;
   } else routeShow(st, prevPhase);
@@ -384,21 +384,17 @@ function renderPanel() {
   const kids = [];
   if (cat === 'me') {
     kids.push(h('div.section-label', 'Style'),
-      h('div.seg', ...['boy', 'girl'].map((b) => h('button', { class: o.body === b ? 'on' : '', on: { click: () => { S.body = b; LS.set('tys_body', b); setOutfit({ body: b, tunic: o.tunic && ITEM_MAP[o.tunic].price === 0 ? defaultOutfit(b).tunic : o.tunic, hair: defaultOutfit(b).hair }); } } }, b === 'boy' ? '🧒🏽 Boy' : '👧🏽 Girl'))));
+      h('div.seg', ...['boy', 'girl'].map((b) => h('button', { class: o.body === b ? 'on' : '', on: { click: () => { S.body = b; LS.set('tys_body', b); setOutfit({ body: b, tunic: o.tunic && ITEM_MAP[o.tunic].price === 0 ? defaultOutfit(b).tunic : o.tunic, hair: hairFor(b).some((x) => x.id === o.hair) ? o.hair : defaultOutfit(b).hair }); } } }, b === 'boy' ? '🧒🏽 Boy' : '👧🏽 Girl'))));
     kids.push(h('div.section-label', 'Skin tone'),
       h('div.swatches', ...SKIN_TONES.map((c, i) => h('button.sw', { class: o.skin === i ? 'on' : '', style: { background: c }, 'aria-label': `Skin tone ${i + 1}`, on: { click: () => setOutfit({ skin: i }) } }))));
     kids.push(h('div.section-label', 'Hair style'),
-      h('div.chips', ...HAIR_STYLES.map((hs) => h('button.chip', { class: o.hair === hs.id ? 'on' : '', on: { click: () => setOutfit({ hair: hs.id }) } }, hs.name))));
+      h('div.chips', ...hairFor(o.body).map((hs) => h('button.chip', { class: o.hair === hs.id ? 'on' : '', on: { click: () => setOutfit({ hair: hs.id }) } }, hs.name))));
     kids.push(h('div.section-label', 'Hair colour'),
       h('div.swatches', ...HAIR_COLORS.map((c, i) => h('button.sw', { class: o.hairColor === i ? 'on' : '', style: { background: c }, 'aria-label': `Hair colour ${i + 1}`, on: { click: () => setOutfit({ hairColor: i }) } }))));
     kids.push(h('div.section-label', 'Eye colour'),
       h('div.swatches', ...EYE_COLORS.map((c, i) => h('button.sw.eye', { class: (o.eyes ?? 0) === i ? 'on' : '', style: { background: `radial-gradient(circle, #111 0 28%, ${c} 30% 70%, #f7f3ee 72%)` }, 'aria-label': `Eye colour ${i + 1}`, on: { click: () => setOutfit({ eyes: i }) } }))));
     const team = myTeam();
-    if (team) {
-      kids.push(h('div.section-label', 'Your team'),
-        h('div.row', h('span.team-chip.on', h('span.team-dot', { style: { background: team.color } }), team.name),
-          S.room?.settings.studentTeamNames && S.room.phase !== 'runway' ? h('button.team-chip.name-btn', { class: team.named ? '' : 'nudge', on: { click: openTeamName } }, team.named ? '✏️ Rename' : '✏️ Name your team!') : null));
-    }
+    if (team) kids.push(h('div.section-label', 'Your team'), teamChip(team));
   } else if (cat === 'tunic' || ARMOR_SLOTS.includes(cat)) {
     const list = sortItems(ITEMS.filter((i) => i.cat === cat));
     const cards = [];
@@ -600,52 +596,20 @@ function coinBurst(fromEl) {
   }
 }
 
-// ------------------------------------------------------------------ lobby team picker
+// ------------------------------------------------------------------ team info (each device is a team)
 function myTeam() {
-  const st = S.room;
-  const me = st?.players.find((p) => p.id === S.me?.playerId);
-  return me && me.role === 'player' ? st.teams.find((t) => t.id === me.team) : null;
+  return S.room?.players.find((p) => p.id === S.me?.playerId) || null;
 }
-function renderTeamPick() {
+function teamChip(team) {
+  const n = team.members || 1;
+  return h('div.row', h('span.team-chip.on', h('span.team-dot', { style: { background: team.color } }), team.name),
+    h('span.muted', team.role === 'judge' ? '⚖️ Teacher judge' : `👥 ${n} player${n === 1 ? '' : 's'} · your stars count ×${n}`));
+}
+function renderTeamInfo() {
   const box = $('#team-pick');
-  const st = S.room;
-  if (!st || st.phase !== 'lobby') { box.replaceChildren(); return; }
   const team = myTeam();
-  const kids = [];
-  if (st.settings.teamMode === 'choose' && st.teams.length > 1) {
-    kids.push(h('span.muted', 'Pick your team:'), ...st.teams.map((t) => h('button.team-chip', {
-      class: team?.id === t.id ? 'on' : '',
-      on: { click: () => { LS.set('tys_team', t.id); joinGame(S.code, SS.get('tys_session')?.name || LS.get('tys_name'), S.body, { silent: true }); } },
-    }, h('span.team-dot', { style: { background: t.color } }), t.name)));
-  } else if (team) {
-    kids.push(h('span.muted', 'Your team:'), h('span.team-chip.on', h('span.team-dot', { style: { background: team.color } }), team.name));
-  }
-  if (team && st.settings.studentTeamNames) {
-    kids.push(h('button.team-chip.name-btn', { class: team.named ? '' : 'nudge', on: { click: openTeamName } }, team.named ? '✏️ Rename' : '✏️ Name your team!'));
-  }
-  box.replaceChildren(...kids);
-}
-const TEAM_IDEAS = ['Shield Bearers', 'Salt & Light', 'Mighty Sparrows', 'Faith Warriors', 'Lights of the World', 'Gospel Runners', 'Truth Seekers', 'Peacemakers', 'Lion of Judah', 'Mustard Seeds'];
-function openTeamName() {
-  const team = myTeam();
-  if (!team) return;
-  const input = h('input.team-name-input', { maxLength: 20, placeholder: 'Team name', value: team.named ? team.name : '' });
-  const err = h('p.error');
-  const save = () => socket.emit('player:teamName', { name: input.value }, (r) => {
-    if (!r?.ok) { err.textContent = r?.error || 'Could not save that name.'; return; }
-    closeModal(); sfx.equip(); toast(`Your team is now “${input.value.trim()}”!`);
-  });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-  modal(
-    h('h3', h('span.team-dot', { style: { background: team.color, marginRight: '8px' } }), 'Name your team'),
-    h('p.muted', team.named ? `Named by ${team.namedBy || 'a teammate'}. Anyone on the team can change it.` : 'Talk with your teammates and pick a name together!'),
-    input,
-    h('div.section-label', 'Ideas'),
-    h('div.chips', ...TEAM_IDEAS.map((n) => h('button.chip', { on: { click: () => { input.value = n; input.focus(); } } }, n))),
-    err,
-    h('div.modal-actions', h('button.btn', { on: { click: closeModal } }, 'Cancel'), h('button.btn.primary', { on: { click: save } }, 'Save name')),
-  );
-  setTimeout(() => input.focus(), 50);
+  if (!team || S.room?.phase !== 'lobby') { box.replaceChildren(); return; }
+  box.replaceChildren(teamChip(team));
 }
 
 // ------------------------------------------------------------------ speech bubble preview (dressing room)
@@ -685,7 +649,7 @@ function tickShow() {
   runway.showEntry(entry);
   runway.setTime(t, T);
   const tl = timeline(entry, T);
-  const team = st.teams.find((x) => x.id === entry.team);
+  const team = { color: entry.color, members: entry.members || 1 };
   $('#show-progress').textContent = `${rw.paused ? '⏸ ' : ''}On the runway ${rw.index + 1}/${rw.count}`;
   $('#show-title').textContent = 'Take Your Stand';
 
@@ -694,7 +658,7 @@ function tickShow() {
     const has = (s) => entry.outfit[s] && !(s === 'helmet' && entry.outfit.head && ITEM_MAP[entry.outfit.head]?.look.replacesHelmet);
     $('#namecard').replaceChildren(
       h('div.nm', entry.name),
-      h('div.tm', h('span.team-dot', { style: { background: team?.color } }), ` ${team?.name || ''} · ${WALK_MAP[entry.outfit.walk]?.name || ''}`),
+      h('div.tm', h('span.team-dot', { style: { background: team.color } }), ` 👥 ${team.members} player${team.members === 1 ? '' : 's'} · ${WALK_MAP[entry.outfit.walk]?.name || ''}`),
       h('div.armor', ...ARMOR_SLOTS.map((s) => h('span', { class: has(s) ? 'has' : '', title: s }, CATEGORIES.find((c) => c.id === s).icon))),
     );
     $('#namecard').style.borderLeftColor = team?.color || '';
@@ -705,7 +669,7 @@ function tickShow() {
   let intro = $('#intro');
   if (t < 0) {
     if (!intro) { intro = h('div.intro-card#intro'); $('#show').append(intro); }
-    intro.replaceChildren(h('div.eyebrow', 'Next on the runway'), h('div.nm', entry.name), h('div.muted', team?.name || ''));
+    intro.replaceChildren(h('div.eyebrow', 'Next on the runway'), h('div.nm', entry.name), h('div.muted', `👥 ${team.members} player${team.members === 1 ? '' : 's'}`));
   } else intro?.remove();
   $('#namecard').classList.toggle('hidden', t < 0);
 
@@ -747,7 +711,9 @@ function renderVote(entry) {
         thanks.textContent = n >= 4 ? 'Amazing! Vote saved.' : 'Vote saved — you can change it.';
       });
     } } }, '⭐'));
-    v.replaceChildren(h('h3', `How well did ${entry.name} put on the armor?`), h('div.stars', ...stars), thanks);
+    const mine = S.role === 'host' ? null : S.room.players.find((p) => p.id === S.me?.playerId);
+    v.replaceChildren(h('h3', `How well did ${entry.name} put on the armor?`), h('div.stars', ...stars), thanks,
+      mine && mine.role !== 'judge' && (mine.members || 1) > 1 ? h('div.muted', `Your team's stars count ×${mine.members}`) : null);
   }
   requestAnimationFrame(updateInsets);
 }
@@ -761,17 +727,14 @@ function showResults(st) {
   $('#namecard').classList.add('hidden');
   $('#speech').classList.add('hidden');
   const myId = S.me?.playerId;
-  const maxTeam = Math.max(0.01, ...r.teamScores.map((t) => t.score));
   const box = $('#results');
   box.replaceChildren(...[
     h('h2', '🏆 The Armor of God Awards'),
-    r.teamScores.length > 1 ? h('div.team-bars', ...r.teamScores.map((t) => h('div.team-bar',
-      h('span', t.name), h('div.bar', h('i', { style: { width: `${(t.score / maxTeam) * 100}%`, background: t.color } })), h('span', t.score.toFixed(2))))) : null,
     ...r.scores.map((s, i) => {
-      const team = st.teams.find((t) => t.id === s.team);
       return h('div.rank-row', { class: s.id === myId ? 'me' : '' },
         h('span.rk', ['🥇', '🥈', '🥉'][i] || i + 1),
-        h('div', h('div.nm', s.name), h('div.sub', `${team?.name || ''} · ${s.votes} vote${s.votes === 1 ? '' : 's'}${s.fullArmor ? ' · 🛡️ full armor' : ''}${s.outfit.prayer ? ' · 🙏' : ''}`)),
+        h('div', h('div.nm', h('span.team-dot', { style: { background: s.color, marginRight: '6px' } }), s.name),
+          h('div.sub', `👥 ${s.members || 1} · ${s.votes} vote${s.votes === 1 ? '' : 's'}${s.fullArmor ? ' · 🛡️ full armor' : ''}${s.outfit.prayer ? ' · 🙏' : ''}`)),
         h('span.sc', `★ ${s.total.toFixed(2)}`));
     }),
     S.role === 'host' ? h('div.modal-actions', h('button.btn.primary', { on: { click: () => socket.emit('host:again') } }, 'Play another round')) : h('p.muted', { style: { textAlign: 'center' } }, 'Great job standing firm! 🙌'),

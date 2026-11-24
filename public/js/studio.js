@@ -20,20 +20,20 @@ export class Studio {
     this.stage = stage;
     const scene = new THREE.Scene();
     scene.environment = stage.envTex;
-    scene.environmentIntensity = 0.55;
+    scene.environmentIntensity = 0.32;
     this.scene = scene;
     this.camera = new THREE.PerspectiveCamera(32, 1, 0.05, 60);
 
-    scene.add(new THREE.HemisphereLight('#fff7ea', '#cdb28c', 1.1));
-    const key = new THREE.DirectionalLight('#fff4e2', 2.4);
+    scene.add(new THREE.HemisphereLight('#fff7ea', '#cdb28c', 0.42));
+    const key = new THREE.DirectionalLight('#fff4e2', 1.1);
     key.position.set(-1.6, 3.2, 2.6);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -1.2; key.shadow.camera.right = 1.2; key.shadow.camera.top = 2.2; key.shadow.camera.bottom = -0.3;
     key.shadow.bias = -0.0005; key.shadow.radius = 4;
     scene.add(key);
-    const rim = new THREE.DirectionalLight('#ffe2b8', 1.3); rim.position.set(2, 2.2, -2.5); scene.add(rim);
-    const fill = new THREE.DirectionalLight('#dfe8ff', 0.5); fill.position.set(2.5, 1, 2); scene.add(fill);
+    const rim = new THREE.DirectionalLight('#ffe2b8', 0.7); rim.position.set(2, 2.2, -2.5); scene.add(rim);
+    const fill = new THREE.DirectionalLight('#dfe8ff', 0.25); fill.position.set(2.5, 1, 2); scene.add(fill);
 
     // floor & pedestal
     const floor = new THREE.Mesh(new THREE.CircleGeometry(1.6, 48), new THREE.MeshBasicMaterial({ map: floorTexture(), transparent: true, depthWrite: false, toneMapped: false, opacity: 0.9 }));

@@ -28,24 +28,24 @@ export const POSE_FNS = {
   }),
   shieldup: (t) => ({
     ...LEGS_APART, ...SHIELD_FRONT,
-    uArmR: R(-0.2, 0, -0.55), fArmR: R(-1.2, 0, 0), handR: R(-0.6, 0, 0),
+    uArmR: R(-0.2, 0, -0.55), fArmR: R(-1.2, 0, 0), handR: R(-0.55, -0.5, -0.1),
     thighL: R(-0.25, 0, 0.12), shinL: R(0.2, 0, 0), thighR: R(0.12, 0, -0.12),
     torso: R(0.05, -0.15, 0), head: R(0, 0.1, 0),
   }),
   wave: (t) => ({
-    uArmR: R(0, 0, -2.55), fArmR: R(0, 0, 0.45 + Math.sin(t * 9) * 0.45), handR: R(-1.2, 0, 0),
+    uArmR: R(0, 0, -2.55), fArmR: R(0, 0, 0.45 + Math.sin(t * 9) * 0.45), handR: R(0.2, -1.0, -0.1), // sword held upright while waving
     torso: R(0, 0.06 * Math.sin(t * 4.5), 0.03 * Math.sin(t * 4.5)), head: R(-0.05, 0, 0.08),
     thighL: R(0, 0, 0.06), thighR: R(0, 0, -0.06),
   }),
   swordsky: (t) => ({
     ...LEGS_APART,
-    uArmR: R(0, 0, -2.95), fArmR: R(0, 0, 0.05), handR: R(-1.6, 0, 0),
+    uArmR: R(0, 0, -2.95), fArmR: R(0, 0, 0.05), handR: R(0.65, -0.25, 0.05),
     ...SHIELD_FRONT,
     head: R(-0.35, 0, 0), torso: R(-0.08, 0, 0), hipsY: -0.01 + Math.sin(t * 2) * 0.005,
   }),
   praise: (t) => ({
     uArmL: R(-0.2, 0, 2.45 + Math.sin(t * 2.4) * 0.1), fArmL: R(-0.1, 0, -0.2),
-    uArmR: R(-0.2, 0, -2.45 - Math.sin(t * 2.4) * 0.1), fArmR: R(-0.1, 0, 0.2), handR: R(-1.3, 0, 0),
+    uArmR: R(-0.2, 0, -2.45 - Math.sin(t * 2.4) * 0.1), fArmR: R(-0.1, 0, 0.2), handR: R(0.2, -0.75, -0.1),
     head: R(-0.3, 0, 0), torso: R(-0.06, 0, Math.sin(t * 1.6) * 0.06), hips: R(0, 0, -Math.sin(t * 1.6) * 0.03),
   }),
   prayer: (t) => ({
@@ -55,7 +55,7 @@ export const POSE_FNS = {
   }),
   pointup: (t) => ({
     ...HAND_ON_HIP_L,
-    uArmR: R(-0.4, 0, -2.6), fArmR: R(-0.15, 0, 0.1), handR: R(-1.5, 0, 0),
+    uArmR: R(-0.4, 0, -2.6), fArmR: R(-0.15, 0, 0.1), handR: R(0.2, -0.5, -0.1),
     head: R(-0.3, -0.15, 0), torso: R(-0.05, -0.1, 0),
     thighR: R(-0.12, 0, -0.08), shinR: R(0.18, 0, 0),
   }),
@@ -82,7 +82,7 @@ export const POSE_FNS = {
     thighL: R(-0.35, 0, 0.22), shinL: R(0.35, 0, 0), footL: R(0, 0, -0.2),
     thighR: R(0.25, 0, -0.22), shinR: R(0.15, 0, 0), footR: R(-0.2, 0, 0.2),
     hipsY: -0.04, ...SHIELD_FRONT,
-    uArmR: R(0.2, 0, -1.3), fArmR: R(-0.9, 0, 0.3), handR: R(-0.9, 0, 0),
+    uArmR: R(0.2, 0, -1.3), fArmR: R(-0.9, 0, 0.3), handR: R(-0.7, -0.5, -1.75),
     torso: R(0, -0.25, 0), head: R(-0.05, 0.25, 0),
   }),
   kneel: (t) => {
@@ -136,7 +136,7 @@ export function walkFrame(t, style) {
     head: R(-0.04, -0.05 * s, 0),
   };
   if (w.royal) {
-    f.uArmR = R(-0.35, 0, -1.25); f.fArmR = R(-1.1, 0, 0.35 + Math.sin(t * 5) * 0.35); f.handR = R(-1.0, 0, 0);
+    f.uArmR = R(-0.35, 0, -1.25); f.fArmR = R(-1.1, 0, 0.35 + Math.sin(t * 5) * 0.35); f.handR = R(-0.55, -0.5, -1.15); // sword upright
     f.head = R(-0.12, 0.1 * Math.sin(t * 0.7), 0); f.torso = R(-0.04, 0, 0);
   }
   if (w.bounce) { f.uArmL = R(w.arm * s, 0, 0.5); f.uArmR = R(-w.arm * s, 0, -0.5); }

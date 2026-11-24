@@ -32,19 +32,27 @@ export const SKIN_TONES = ['#f4d6bd', '#eac19e', '#dcaa80', '#c88f62', '#ad7349'
 export const HAIR_COLORS = ['#17110e', '#38231a', '#5a3521', '#7d3b1f', '#9f6b36', '#c9a061', '#8e8a86'];
 export const EYE_COLORS = ['#5a3420', '#7a4a26', '#8a6a32', '#4f7a4a', '#4a77a8', '#6f7f8f'];
 export const HAIR_STYLES = [
-  { id: 'crop', name: 'Cropped Curls' },
-  { id: 'coils', name: 'Short Coils' },
-  { id: 'wavy', name: 'Wavy Crop' },
-  { id: 'curly', name: 'Dark Curls' },
-  { id: 'shoulder', name: 'Shoulder Waves' },
-  { id: 'braidcrown', name: 'Braided Crown' },
-  { id: 'lowknot', name: 'Low Knot' },
-  { id: 'braid', name: 'Long Braid' },
-  { id: 'lowbun', name: 'Coiled Bun' },
-  { id: 'twists', name: 'Side Twists' },
-  { id: 'loop', name: 'Low Loop' },
-  { id: 'puffs', name: 'Twin Puffs' },
+  // boys
+  { id: 'crop', name: 'Cropped Curls', body: 'boy' },
+  { id: 'coils', name: 'Short Coils', body: 'boy' },
+  { id: 'wavy', name: 'Wavy Crop', body: 'boy' },
+  { id: 'curly', name: 'Curly Top', body: 'boy' },
+  { id: 'buzz', name: 'Buzz Cut', body: 'boy' },
+  { id: 'sidepart', name: 'Side Part', body: 'boy' },
+  { id: 'shepherd', name: 'Shepherd Waves', body: 'boy' },
+  // girls
+  { id: 'shoulder', name: 'Long Waves', body: 'girl' },
+  { id: 'braid', name: 'Long Braid', body: 'girl' },
+  { id: 'pony', name: 'High Ponytail', body: 'girl' },
+  { id: 'longcurls', name: 'Long Curls', body: 'girl' },
+  { id: 'lowbun', name: 'Coiled Bun', body: 'girl' },
+  { id: 'braidcrown', name: 'Braided Crown', body: 'girl' },
+  { id: 'lowknot', name: 'Low Knot', body: 'girl' },
+  { id: 'twists', name: 'Side Twists', body: 'girl' },
+  { id: 'loop', name: 'Low Loop', body: 'girl' },
+  { id: 'puffs', name: 'Twin Puffs', body: 'girl' },
 ];
+export const hairFor = (body) => HAIR_STYLES.filter((h) => h.body === (body === 'girl' ? 'girl' : 'boy'));
 export const BODIES = [
   { id: 'boy', name: 'Boy' },
   { id: 'girl', name: 'Girl' },
@@ -88,19 +96,19 @@ export const ITEMS = [
   I('belt-x1', 'belt', 'Golden Cord of Truth', 35, { style: 'cord', color: '#d4a640', buckle: 'round', metal: 'gold' }, { noIcon: true }),
 
   // BREASTPLATE OF RIGHTEOUSNESS
-  I('breastplate-v1', 'breastplate', 'Quilted Flax Vest', 0, { style: 'quilt', color: '#ddd0b3' }),
-  I('breastplate-v2', 'breastplate', 'Olive Medallion Vest', 0, { style: 'vest', color: '#8a9a6b', medallion: 'olive', metal: 'bronze' }),
-  I('breastplate-g1', 'breastplate', 'Rose Petal Quilt', 0, { style: 'quilt', color: '#c98a8a', petal: true, edge: 'bronze' }),
-  I('breastplate-v3', 'breastplate', 'Russet Band Guard', 15, { style: 'bands', color: '#8c4a2b', count: 4 }),
-  I('breastplate-g2', 'breastplate', 'Sage Leather Shell', 15, { style: 'vest', color: '#7c8c58', medallion: 'olive', metal: 'bronze', leather: true }),
-  I('breastplate-v4', 'breastplate', 'Indigo Bronze Scales', 20, { style: 'scales', color: '#2f3d6d', scale: '#b07a43', metal: 'bronze' }),
-  I('breastplate-g3', 'breastplate', 'Lapis Scale Shell', 20, { style: 'scales', color: '#35539a', scale: '#4766ad', edgeC: '#d8b24c', gem: '#1f3f9a' }),
-  I('breastplate-v5', 'breastplate', 'Hide Plate Guard', 25, { style: 'plates', color: '#4a3226', rivets: 'bronze' }),
-  I('breastplate-g4', 'breastplate', 'Lily Bronze Cuirass', 25, { style: 'cuirass', metal: 'bronze', emblem: 'lily', side: '#7f3f5e' }),
-  I('breastplate-v6', 'breastplate', 'Sun Bronze Cuirass', 30, { style: 'cuirass', metal: 'bronze', emblem: 'sun' }),
-  I('breastplate-g5', 'breastplate', 'Pomegranate Cuirass', 30, { style: 'cuirass', color: '#9b2c2c', sideMetal: 'copper', emblem: 'pomegranate' }),
-  I('breastplate-g6', 'breastplate', 'Pearl Lotus Shell', 35, { style: 'quilt', color: '#efe7d8', layers: true, collar: 'gold', emblem: 'lotus' }),
-  I('breastplate-x1', 'breastplate', 'Dove of Peace Plate', 35, { style: 'cuirass', metal: 'pewter', emblem: 'dove' }, { noIcon: true }),
+  I('breastplate-v1', 'breastplate', 'Quilted Flax Vest', 0, { style: 'quilt', quilt: 'grid', color: '#dccaa6', piping: '#cdb68c', straps: '#d2bf98' }),
+  I('breastplate-v2', 'breastplate', 'Olive Medallion Vest', 0, { style: 'quilt', quilt: 'vertical', color: '#8c9b6a', piping: '#d8c8a4', medallion: 'olive', metal: 'bronze' }),
+  I('breastplate-g1', 'breastplate', 'Rose Petal Quilt', 0, { style: 'quilt', quilt: 'lotus', color: '#c98a8a', pipingMetal: 'gold' }),
+  I('breastplate-v3', 'breastplate', 'Russet Band Guard', 15, { style: 'bands', color: '#a2482c', count: 4 }),
+  I('breastplate-g2', 'breastplate', 'Sage Leather Shell', 15, { style: 'leather', color: '#6f7a48', emblem: 'olive', emblemC: '#d8b24c', straps: '#66703f' }),
+  I('breastplate-v4', 'breastplate', 'Indigo Bronze Scales', 20, { style: 'scales', color: '#2f3d6d', scale: '#b88a45', piping: '#34447a', straps: '#34447a', rivets: 'bronze' }),
+  I('breastplate-g3', 'breastplate', 'Lapis Scale Shell', 20, { style: 'scales', color: '#35539a', scale: '#4766ad', edgeC: '#d8b24c', pipingMetal: 'gold', gem: '#1f3f9a' }),
+  I('breastplate-v5', 'breastplate', 'Hide Plate Guard', 25, { style: 'plates', color: '#5a3624', rivets: 'bronze' }),
+  I('breastplate-g4', 'breastplate', 'Lily Bronze Cuirass', 25, { style: 'cuirass', metal: 'bronze', emblem: 'lilystem', side: '#7f3f5e', pipingMetal: 'gold' }),
+  I('breastplate-v6', 'breastplate', 'Sun Bronze Cuirass', 30, { style: 'cuirass', metal: 'bronze', emblem: 'sun', seams: true }),
+  I('breastplate-g5', 'breastplate', 'Pomegranate Cuirass', 30, { style: 'leather', color: '#a22d27', sideMetal: 'copper', emblem: 'pomseed', emblemC: '#7a1a17', emboss: true, straps: '#8f2623', rivets: 'copper' }),
+  I('breastplate-g6', 'breastplate', 'Pearl Lotus Shell', 35, { style: 'layers', color: '#efe7d8', yoke: true }),
+  I('breastplate-x1', 'breastplate', 'Dove of Peace Plate', 35, { style: 'cuirass', metal: 'pewter', emblem: 'dove', seams: true }, { noIcon: true }),
 
   // SHOES OF THE GOSPEL OF PEACE
   I('shoes-v1', 'shoes', 'Tan Two-Band Sandals', 0, { color: '#c49a6c', bands: [0.35, 0.7], ankle: true }),
@@ -118,19 +126,19 @@ export const ITEMS = [
   I('shoes-x1', 'shoes', 'Sunrise Messenger Sandals', 35, { color: '#e08a3c', color2: '#f3c14d', bands: [0.35, 0.6, 0.8], ankle: true, high: 1, accent: 'gold' }, { noIcon: true }),
 
   // SHIELD OF FAITH
-  I('shield-v1', 'shield', 'Rawhide Round Shield', 0, { shape: 'circle', face: '#dcc8a0', rim: '#a77a4a', emblem: 'stitch', grain: 'leather' }),
-  I('shield-v2', 'shield', 'Cedar Olive Shield', 0, { shape: 'oval', face: '#8f9c6c', rim: '#bf955f', emblem: 'olive', emblemC: '#c9a24a', grain: 'wood' }),
-  I('shield-g1', 'shield', 'Rose Scallop Shield', 0, { shape: 'scallop', face: '#cf9494', rim: '#b98a6a', emblem: 'rosette', emblemC: '#c18a4a' }),
-  I('shield-v3', 'shield', 'Rust Tower Shield', 15, { shape: 'rect', face: '#9b3a26', rim: 'bronze', boss: 'gold' }),
-  I('shield-g2', 'shield', 'Olive Laurel Shield', 15, { shape: 'almond', face: '#6f7a45', rim: 'bronze', emblem: 'laurel', emblemC: '#d2a84f' }),
-  I('shield-v4', 'shield', 'Indigo Sunburst Shield', 20, { shape: 'circle', face: '#2f3d6d', rim: 'bronze', emblem: 'sunburst', emblemC: '#c89150', boss: 'bronze' }),
-  I('shield-g3', 'shield', 'Lapis Star Shield', 20, { shape: 'octagon', face: '#2f4a8a', rim: 'brass', emblem: 'petal8', emblemC: '#d8b24c' }),
-  I('shield-v5', 'shield', 'Chestnut Teardrop', 25, { shape: 'teardrop', face: '#6b3e22', rim: 'bronze', boss: 'bronze', grain: 'leather' }),
-  I('shield-g4', 'shield', 'Mulberry Lily Shield', 25, { shape: 'oval', face: '#7f3f5e', rim: '#c9a77a', emblem: 'lily', emblemC: '#e2c48e' }),
-  I('shield-v6', 'shield', 'Radiant Sun Shield', 30, { shape: 'squircle', face: '#efe0c0', rim: '#c9954f', emblem: 'sun', emblemC: '#b9813f' }),
-  I('shield-g5', 'shield', 'Pomegranate Shield', 30, { shape: 'rect', face: '#9b2c2c', rim: 'copper', emblem: 'pomegranate', emblemC: '#e0b04f' }),
-  I('shield-g6', 'shield', 'Ivory Lotus Shield', 35, { shape: 'egg', face: '#efe7d8', rim: '#d9c49a', emblem: 'lotus', emblemC: '#c9a24a' }),
-  I('shield-x1', 'shield', 'Ichthys Shield', 35, { shape: 'circle', face: '#e9dfc4', rim: '#3b6aa0', emblem: 'fish', emblemC: '#2f5d93' }, { noIcon: true }),
+  I('shield-v1', 'shield', 'Rawhide Round Shield', 0, { shape: 'circle', face: '#d6c099', rim: '#9c6a3c', grain: 'leather', deco: ['lacing'] }),
+  I('shield-v2', 'shield', 'Cedar Olive Shield', 0, { shape: 'oval', face: '#7f9161', rim: '#c49a5c', emblem: 'olive', emblemC: '#d8c88e', emblemScale: 0.44, grain: 'wood' }),
+  I('shield-g1', 'shield', 'Rose Scallop Shield', 0, { shape: 'scallop', face: '#c97c6e', rim: 'bronze', emblem: 'rosette8', emblemC: '#c99a5a', emblemScale: 0.2, deco: ['wreath'], grain: 'linen' }),
+  I('shield-v3', 'shield', 'Rust Tower Shield', 15, { shape: 'rect', face: '#a8402a', rim: 'bronze', boss: 'bronze', grain: 'painted' }),
+  I('shield-g2', 'shield', 'Olive Laurel Shield', 15, { shape: 'almond', face: '#6f7a3c', rim: 'bronze', emblem: 'sprig', emblemC: '#d8b24c', emblemScale: 0.44, deco: ['sprigsTB'], grain: 'linen' }),
+  I('shield-v4', 'shield', 'Indigo Sunburst Shield', 20, { shape: 'circle', face: '#3f5a8c', rim: 'bronze', emblem: 'wavysun', emblemC: '#c99a52', emblemScale: 0.42, boss: 'bronze', grain: 'leather' }),
+  I('shield-g3', 'shield', 'Lapis Star Shield', 20, { shape: 'octagon', face: '#2e4592', rim: 'gold', emblem: 'petal8', emblemC: '#d8b24c', emblemScale: 0.36, deco: ['innerLine', 'corners'], grain: 'linen' }),
+  I('shield-v5', 'shield', 'Chestnut Teardrop', 25, { shape: 'teardrop', face: '#8a4a2a', rim: 'bronze', boss: 'bronze', grain: 'leather', deco: ['chevron'], stitch: true }),
+  I('shield-g4', 'shield', 'Mulberry Lily Shield', 25, { shape: 'oval', face: '#6e2f52', rim: '#c98a5a', emblem: 'lilystem', emblemC: '#d8b24c', emblemScale: 0.4, deco: ['sprigsTB'], grain: 'linen' }),
+  I('shield-v6', 'shield', 'Radiant Sun Shield', 30, { shape: 'squircle', face: '#efe3c8', rim: 'bronze', emblem: 'wavysun', emblemC: '#c88a44', emblemScale: 0.4, boss: 'bronze', deco: ['sideBands'], band: '#d9a441', grain: 'painted' }),
+  I('shield-g5', 'shield', 'Pomegranate Shield', 30, { shape: 'roundsquare', face: '#a52a26', rim: 'copper', emblem: 'pomseed', emblemC: '#d8b24c', emblemScale: 0.39, deco: ['corners'], grain: 'linen' }),
+  I('shield-g6', 'shield', 'Ivory Lotus Shield', 35, { shape: 'egg', face: '#efe7d4', rim: 'gold', emblem: 'lotusline', emblemC: '#c9a24a', emblemScale: 0.4, deco: ['sprigsTB'], grain: 'linen' }),
+  I('shield-x1', 'shield', 'Ichthys Shield', 35, { shape: 'circle', face: '#e9dfc4', rim: '#3b6aa0', emblem: 'fish', emblemC: '#2f5d93', grain: 'painted', deco: ['innerLine'] }, { noIcon: true }),
 
   // HELMET OF SALVATION
   I('helmet-v1', 'helmet', 'Leather Cap', 0, { dome: '#a87a4b', liner: '#e2d6bb', neck: true, stitch: true }),
@@ -271,7 +279,7 @@ export function sanitizeOutfit(o, owned, unlockAll) {
   out.body = o.body === 'girl' ? 'girl' : 'boy';
   out.skin = clampInt(o.skin, 0, SKIN_TONES.length - 1, d.skin);
   out.hairColor = clampInt(o.hairColor, 0, HAIR_COLORS.length - 1, d.hairColor);
-  out.hair = HAIR_STYLES.some((h) => h.id === o.hair) ? o.hair : d.hair;
+  out.hair = hairFor(out.body).some((h) => h.id === o.hair) ? o.hair : d.hair;
   out.eyes = clampInt(o.eyes, 0, EYE_COLORS.length - 1, 0);
   const okItem = (id, cat) => {
     const it = ITEM_MAP[id];

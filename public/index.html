@@ -35,9 +35,11 @@
         <label>Game code
           <input id="join-code" maxlength="4" inputmode="text" autocapitalize="characters" placeholder="ABCD" required />
         </label>
-        <label>Your first name
-          <input id="join-name" maxlength="18" placeholder="Name" required />
+        <label>Team name
+          <input id="join-name" maxlength="20" placeholder="e.g. Shield Bearers" required />
         </label>
+        <div id="team-ideas" class="chips team-ideas"></div>
+        <div class="pick-label">Your character</div>
         <div class="body-pick">
           <button type="button" class="body-opt" data-body="boy"><span>🧒🏽</span>Boy</button>
           <button type="button" class="body-opt" data-body="girl"><span>👧🏽</span>Girl</button>
@@ -57,7 +59,7 @@
       <button class="pill coins" id="coins-btn" title="Earn coins"><span class="ico">🪙</span><b id="coins-val">0</b><span class="plus">+</span></button>
     </header>
     <div id="lobby-banner" class="banner hidden">
-      <b>You're in!</b> Get your look ready while we wait for your teacher to start.
+      <b>Your team is in!</b> Get your look ready while we wait for your teacher to start.
       <div id="team-pick" class="team-pick"></div>
     </div>
     <div id="bubble-preview" class="speech hidden"></div>

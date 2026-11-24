@@ -2,46 +2,48 @@
 
 A multiplayer **Armor of God** dress-up runway game for Sunday school, built with **three.js** and **Socket.io**, designed for portrait phones and tablets.
 
-Students join on their own devices, dress a 3D character in each piece of the Armor of God (Ephesians 6:10–18), answer Bible questions to earn coins and unlock outfits, write a short prayer, and pick their runway walk and poses. Then everyone watches each character walk down a Jerusalem stone walkway, strike their poses and share their prayer in a speech bubble, and votes with stars. The teacher's vote counts most.
+Teams join on a shared phone or tablet, dress a 3D character in each piece of the Armor of God (Ephesians 6:10–18), answer Bible questions to earn coins and unlock outfits, write a short prayer, and pick their runway walk and poses. Then everyone watches each character walk down a Jerusalem stone walkway, strike their poses and share their prayer in a speech bubble, and votes with stars. Bigger teams' stars count for more, and the teacher's vote counts most.
 
 ## How a game runs
 
 1. **Teacher** opens the site and taps **"I'm the teacher — host a game"**. A 4-letter code and a QR code appear. Put this screen on a projector if you have one.
-2. **Students** scan the QR code (or go to the site and type the code), enter a first name and pick Boy or Girl. While waiting in the lobby they can design their look (skin tone, hair style, hair colour, eye colour), choose a team and **name their team** (teams start as Red Team, Blue Team and so on until someone names them).
+2. **Each team** scans the QR code on its device (or goes to the site and types the code), types its **team name** (there are idea buttons) and picks a Boy or Girl character. In the lobby they design their look: skin tone, hairstyle (boys and girls each have their own cuts), hair colour and eye colour.
+   The teacher sets **how many players are in each team** with the 👥 − / + stepper in the Teams tab. That number is the team's star multiplier.
 3. The teacher taps **Start styling**. The timer starts (5 minutes by default). Students:
    - work through the tabs: Tunic → **Belt of Truth → Breastplate of Righteousness → Shoes of the Gospel of Peace → Shield of Faith → Helmet of Salvation → Sword of the Spirit** → Bonus → Prayer → Runway. The camera zooms to the body part each tab dresses. Pinch to zoom, drag to turn, double-tap to reset.
    - tap the **🪙 coin button** to answer Bible questions and earn coins
    - spend coins on locked items. Each category has **3 free styles**; everything else, including the bonus wardrobe, walks and most poses, is locked.
    - type a **prayer**, which pops up in a speech bubble on the runway (Ephesians 6:18 replaces a "prayer" armor piece)
    - pick a **runway walk** and up to **3 poses**, then tap **I'm ready**.
-4. When time runs out (or the teacher taps **Start runway**), each student's character walks the runway in turn. Everyone else rates them 1–5 ⭐ on their own device. The teacher can pause, replay, skip or finish early.
-5. **Results:** the top three appear on a podium with team standings and a full leaderboard. Tap **Play another round** to go again with the same players.
+4. When time runs out (or the teacher taps **Start runway**), each team's character walks the runway in turn. Everyone else rates them 1–5 ⭐ on their own device. The teacher can pause, replay, skip or finish early.
+5. **Results:** the top three teams appear on a podium above a full leaderboard. Tap **Play another round** to go again with the same players.
 
 ## Host settings
 
 | Tab | What you can set |
 |---|---|
-| **Players** | Move students between teams, make a helper a **Teacher (judge)** who votes with extra weight and doesn't walk, give coins, remove a player |
-| **Game** | Styling time, runway seconds per student, coins per correct answer, starting coins, shop price multiplier, **unlock everything** (free-play), whether students choose teams or are auto-balanced |
+| **Teams** | Every device that joined. Set **players per team** (1–30) with the stepper; each row shows how much that team's stars count. You can also rename a team, switch a device to **Teacher (judge)** (votes with extra weight, doesn't walk), give coins, or remove a team |
+| **Game** | Styling time, runway seconds per team, coins per correct answer, starting coins, shop price multiplier, **unlock everything** (free-play) |
 | **Questions** | Upload a CSV (replace the list or add to it), download a template or the current list, write questions by hand, delete questions, reset to the built-in Armor of God set |
-| **Voting** | Host weight (default ×5, the highest), judge weight (×3), student weight (×1), **team-size adjustment** (equal power per team / partly balanced / none), how teammate votes count (half / full / none), a per-team multiplier, full-armor bonus, prayer bonus, team score as average or total. A **live table** shows each group's share of the voting power as students join |
-| **Teams** | 1–6 teams. Students name their own teams by default (any member can rename it in the lobby or while styling); the tab shows who named each team, and you can override any name or switch student naming off in the Game tab |
+| **Voting** | Weight per player in a team (×1), host weight (×10), **Keep my vote the highest** (on by default), judge weight (×4), full-armor bonus, prayer bonus. A **live table** shows each voter's share of the voting power as teams join |
 
-During styling the **Progress** tab shows each student's armor count, coins, quiz record, ready status and prayer. You can clear an inappropriate prayer there. A basic word filter also runs on names and prayers.
+During styling the **Progress** tab shows each team's armor count, coins, quiz record, ready status and prayer. You can clear an inappropriate prayer there. A basic word filter also runs on names and prayers.
 
 ### How scoring works
 
 A presenter's score is the **weighted average** of the stars they received, plus bonuses (default: +0.5 for wearing all six armor pieces and +0.25 for writing a prayer).
 
-With *Equal power per team*, a student's weight is `student weight × (average team size ÷ their team size) × team multiplier`. For example, with a team of 3 and a team of 1, each vote from the 1-person team counts ×2 and each vote from the 3-person team counts ×0.67, so both teams have the same total say. Nobody can vote for themselves.
+A team's vote counts `players in the team × weight per player`. For example, a team of 5 counts ×5 and a team of 2 counts ×2. The host counts ×10, and with **Keep my vote the highest** on, the host's vote is raised to stay just above the biggest team. Helper teachers count ×4. Teams can't vote for themselves.
+
+Example: a team of 3 gives 5★, a team of 1 gives 1★, a judge gives 3★ and the host gives 4★. The score is (3×5 + 1×1 + 4×3 + 10×4) ÷ (3+1+4+10) = 3.78★, plus any bonuses.
 
 ## Dropping out and rejoining
 
 Nobody loses their progress if their connection drops. Their look, coins, unlocks, prayer, poses and votes are all kept.
 
 - **Refresh, phone screen lock, Wi-Fi blip:** the game reconnects by itself (a "Reconnecting…" banner shows meanwhile). Anything changed while offline is sent up as soon as the connection is back.
-- **Closed the tab or browser:** opening the game link again (the QR code or the address bar) puts the student straight back in their seat. The plain home page also shows a **Rejoin as …** button.
-- **Different device or cleared browser:** typing the same name with the same game code takes back that student's seat, as long as nobody is currently playing in it. A second student with the same name gets their own seat as "Name 2".
+- **Closed the tab or browser:** opening the game link again (the QR code or the address bar) puts the team straight back in its seat. The plain home page also shows a **Rejoin as …** button.
+- **Different device or cleared browser:** typing the same team name with the same game code takes back that team's seat, as long as nobody is currently playing in it. A second team with the same name joins as "Name 2".
 - **Teacher:** refreshing keeps the host screen. The home page offers **Resume hosting** for the last game.
 - **Server restart or crash:** games are saved to disk every couple of seconds and restored when the server starts again, with a short grace period so everyone can reconnect.
 

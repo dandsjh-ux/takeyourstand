@@ -204,15 +204,16 @@ export function hairBump(kind = 'straight') {
 }
 // Alpha mask for the hair cap (sphere UVs: u around, v = polar angle) with a natural hairline.
 // u = 0.25 is the forehead and 0.75 the nape. thetaLen = the cap's polar extent as a fraction of PI.
-export function hairlineAlpha(style = 'short', thetaLen = 0.8) {
-  return cached(`hairline:${style}:${thetaLen}`, () => {
+export function hairlineAlpha(style = 'short', thetaLen = 0.8, part = null) {
+  return cached(`hairline:${style}:${thetaLen}:${part}`, () => {
     const W = 512, H = 256;
     const [c, g] = canvas(W, H);
     g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
     const long = style === 'long';
     // [offset from the forehead in u, polar angle as a fraction of PI]
-    const ctrl = [[0, 0.33], [0.05, 0.32], [0.1, 0.3], [0.15, 0.36], [0.18, 0.47], [0.195, 0.53], [0.215, 0.49], [0.25, long ? 0.47 : 0.45],
-      [0.3, long ? 0.64 : 0.6], [0.4, long ? 0.76 : 0.68], [0.5, long ? 0.79 : 0.71]];
+    const ctrl = long
+      ? [[0, 0.275], [0.06, 0.275], [0.11, 0.3], [0.16, 0.39], [0.2, 0.5], [0.25, 0.57], [0.31, 0.66], [0.4, 0.76], [0.5, 0.79]]
+      : [[0, 0.27], [0.05, 0.262], [0.1, 0.258], [0.14, 0.31], [0.18, 0.42], [0.21, 0.5], [0.25, 0.53], [0.31, 0.6], [0.4, 0.68], [0.5, 0.71]];
     const sample = (u) => {
       let d = Math.abs(((u - 0.25 + 1.5) % 1) - 0.5); // distance from the forehead around the head, 0..0.5
       for (let i = 1; i < ctrl.length; i++) if (d <= ctrl[i][0]) {
@@ -227,11 +228,18 @@ export function hairlineAlpha(style = 'short', thetaLen = 0.8) {
     g.beginPath(); g.moveTo(0, 0);
     for (let x = 0; x <= W; x += 2) g.lineTo(x, (sample(x / W) / thetaLen) * H);
     g.lineTo(W, 0); g.closePath(); g.fill();
+    // parting: a thin line of scalp from the hairline back towards the crown
+    if (part) {
+      const u = part === 'side' ? 0.19 : 0.25, x = u * W, y1 = (sample(u) / thetaLen) * H;
+      g.strokeStyle = '#000'; g.lineCap = 'round';
+      g.lineWidth = 3; g.beginPath(); g.moveTo(x, y1 + 2); g.lineTo(x, H * 0.14); g.stroke();
+      g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, H * 0.14); g.lineTo(x, H * 0.06); g.stroke();
+    }
     // wispy edge
     for (let x = 0; x < W; x += 1.5) {
       const y = (sample(x / W) / thetaLen) * H;
       g.strokeStyle = `rgba(255,255,255,${0.4 + r() * 0.6})`; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(x, y - 3); g.lineTo(x + (r() - 0.5) * 2, y + r() * 5); g.stroke();
+      g.beginPath(); g.moveTo(x, y - 2); g.lineTo(x + (r() - 0.5) * 1.5, y + r() * 2.5); g.stroke();
     }
     return finish(c, { srgb: false });
   });
@@ -475,6 +483,77 @@ export function drawEmblem(g, type, color) {
       g.fillRect(-0.09, -0.7, 0.18, 1.4); g.fillRect(-0.45, -0.35, 0.9, 0.18);
       break;
     }
+    case 'wavysun': { // flame-like wavy rays around a disc (Indigo / Radiant Sun shields)
+      const n = 14;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2, L = i % 2 ? 0.72 : 0.9;
+        g.save(); g.rotate(a);
+        g.beginPath();
+        g.moveTo(-0.075, -0.25);
+        g.bezierCurveTo(-0.16, -0.42, 0.06, -0.55, -0.02, -L);
+        g.bezierCurveTo(0.12, -0.56, -0.04, -0.42, 0.075, -0.25);
+        g.closePath(); g.fill(); g.restore();
+      }
+      g.beginPath(); g.arc(0, 0, 0.28, 0, 7); g.fill();
+      break;
+    }
+    case 'sprig': { // upright branching sprig with leaves and berries
+      g.lineWidth = 0.045;
+      g.beginPath(); g.moveTo(0, 0.88); g.bezierCurveTo(0.07, 0.42, -0.07, 0.02, 0.02, -0.82); g.stroke();
+      const L = [[0.02, 0.58, -1.05, 0.36], [0.01, 0.52, 1.0, 0.34], [0.0, 0.22, -0.95, 0.38], [0.0, 0.16, 0.95, 0.36],
+        [-0.01, -0.14, -0.8, 0.32], [0.0, -0.2, 0.85, 0.32], [0.02, -0.5, -0.6, 0.26], [0.02, -0.52, 0.6, 0.26], [0.02, -0.78, 0, 0.22]];
+      for (const [x, y, a, l] of L) leaf(x, y, l, 0.11, a);
+      for (const [x, y] of [[-0.2, 0.34], [0.22, 0.02], [-0.19, -0.3], [0.16, -0.62], [-0.1, -0.7]]) { g.beginPath(); g.arc(x, y, 0.055, 0, 7); g.fill(); }
+      break;
+    }
+    case 'lilystem': { // lily flower with stamens on a stem with two leaves
+      g.lineWidth = 0.055;
+      g.beginPath(); g.moveTo(0, 0.18); g.quadraticCurveTo(0.06, 0.55, 0, 0.9); g.stroke();
+      leaf(0, 0.82, 0.48, 0.13, -0.95); leaf(0, 0.82, 0.48, 0.13, 0.95);
+      g.beginPath(); g.moveTo(0, 0.22); g.bezierCurveTo(0.17, -0.05, 0.11, -0.36, 0, -0.52); g.bezierCurveTo(-0.11, -0.36, -0.17, -0.05, 0, 0.22); g.fill();
+      for (const s of [-1, 1]) {
+        g.beginPath(); g.moveTo(0, 0.2);
+        g.bezierCurveTo(s * 0.26, 0.16, s * 0.58, -0.04, s * 0.64, -0.36);
+        g.bezierCurveTo(s * 0.48, -0.12, s * 0.27, 0.0, s * 0.05, 0.06); g.fill();
+      }
+      g.lineWidth = 0.025;
+      for (const s of [-1, 0, 1]) {
+        const ex = s * 0.15, ey = -0.66 + Math.abs(s) * 0.08;
+        g.beginPath(); g.moveTo(0, 0.0); g.lineTo(ex, ey); g.stroke();
+        g.beginPath(); g.arc(ex, ey, 0.045, 0, 7); g.fill();
+      }
+      break;
+    }
+    case 'pomseed': { // pomegranate outline with crown, seed drops and leaves
+      g.lineWidth = 0.085;
+      g.beginPath(); g.arc(0, 0.02, 0.42, -Math.PI * 0.34, Math.PI * 1.34); g.stroke();
+      g.beginPath(); g.moveTo(-0.17, -0.36); g.lineTo(-0.23, -0.62); g.lineTo(-0.08, -0.5); g.lineTo(0, -0.72); g.lineTo(0.08, -0.5); g.lineTo(0.23, -0.62); g.lineTo(0.17, -0.36); g.closePath(); g.fill();
+      for (const [x, y] of [[0, -0.2], [-0.13, -0.04], [0.13, -0.04], [-0.24, 0.13], [0, 0.11], [0.24, 0.13], [-0.12, 0.27], [0.12, 0.27]]) {
+        g.beginPath(); g.moveTo(x, y - 0.085); g.quadraticCurveTo(x + 0.065, y + 0.035, x, y + 0.065); g.quadraticCurveTo(x - 0.065, y + 0.035, x, y - 0.085); g.fill();
+      }
+      g.lineWidth = 0.045; g.beginPath(); g.moveTo(0, 0.44); g.lineTo(0, 0.68); g.stroke();
+      leaf(0, 0.6, 0.46, 0.13, -1.25); leaf(0, 0.6, 0.46, 0.13, 1.25);
+      break;
+    }
+    case 'lotusline': { // line-art lotus (stroked petals) with stem and leaves
+      g.lineWidth = 0.055;
+      const pet = (ang, len, w) => { g.save(); g.translate(0, 0.14); g.rotate(ang); g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(w, -len * 0.5, 0, -len); g.quadraticCurveTo(-w, -len * 0.5, 0, 0); g.stroke(); g.restore(); };
+      pet(0, 0.66, 0.21); pet(-0.55, 0.54, 0.19); pet(0.55, 0.54, 0.19); pet(-1.12, 0.38, 0.15); pet(1.12, 0.38, 0.15);
+      g.beginPath(); g.moveTo(-0.46, 0.15); g.quadraticCurveTo(0, 0.34, 0.46, 0.15); g.stroke();
+      g.beginPath(); g.moveTo(0, 0.24); g.lineTo(0, 0.78); g.stroke();
+      leaf(0, 0.64, 0.38, 0.12, -1.1); leaf(0, 0.64, 0.38, 0.12, 1.1);
+      g.beginPath(); g.arc(0, 0.84, 0.045, 0, 7); g.fill();
+      break;
+    }
+    case 'rosette8': { // hammered 8-petal rosette with a domed centre
+      for (let i = 0; i < 8; i++) {
+        g.save(); g.rotate((i / 8) * Math.PI * 2);
+        g.beginPath(); g.ellipse(0, -0.42, 0.2, 0.3, 0, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+      g.beginPath(); g.arc(0, 0, 0.24, 0, 7); g.fill();
+      break;
+    }
     default: break;
   }
   g.restore();
@@ -543,6 +622,10 @@ function grain(g, W, H, kind, r) {
       g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.04 + r() * 0.08})`;
       g.fillRect(x, r() * H * 0.3, 0.6 + r() * 1.2, H * (0.4 + r() * 0.6));
     }
+  } else if (kind === 'linen') {
+    for (let y = 0; y < H; y += 3) { g.fillStyle = `rgba(0,0,0,${0.05 + r() * 0.05})`; g.fillRect(0, y, W, 1); }
+    for (let x = 0; x < W; x += 3) { g.fillStyle = `rgba(255,255,255,${0.05 + r() * 0.06})`; g.fillRect(x, 0, 1, H); }
+    for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.05 + r() * 0.07})`; g.fillRect(r() * W, r() * H, 10 + r() * 40, 1.5); }
   } else if (kind === 'leather') {
     for (let i = 0; i < 1800; i++) {
       g.fillStyle = `rgba(0,0,0,${0.04 + r() * 0.06})`;
@@ -594,16 +677,27 @@ export function bladeTexture(color, kind, emblem, emblemC) {
   });
 }
 
-// Shield face drawn inside its real outline (pts in 0..1 UV space): grain, edge shading,
-// stitched border and a gilded emblem with relief.
-export function shieldFaceTexture(key, pts, face, kind, emblem, emblemC, { scale = 0.36, stitch = true } = {}) {
-  return cached(`shield:${key}`, () => {
+// Shield face drawn inside its real outline (pts in 0..1 UV space). Returns a colour map and a
+// mask (white = gilded metal relief) used for metalness and bump.
+// deco: list of extra ornaments seen on the reference sheets.
+function smallSprig(g, x, y, size, ang, color) {
+  g.save(); g.translate(x, y); g.rotate(ang); g.scale(size, size);
+  g.fillStyle = color; g.strokeStyle = color; g.lineWidth = 0.08; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(0, 0.9); g.quadraticCurveTo(0.08, 0, 0, -0.9); g.stroke();
+  for (let k = 0; k < 4; k++) {
+    for (const sd of [-1, 1]) {
+      g.save(); g.translate(0, 0.55 - k * 0.42); g.rotate(sd * 0.9);
+      g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(0.16, -0.22, 0, -0.42); g.quadraticCurveTo(-0.16, -0.22, 0, 0); g.fill();
+      g.restore();
+    }
+  }
+  g.restore();
+}
+export function shieldFace(key, pts, opts) {
+  return cached(`shieldface:${key}`, () => {
+    const { face, kind = 'painted', emblem = null, emblemC = '#d2a84f', scale = 0.36, stitch = false, deco = [], band = '#d9a441' } = opts;
     const S = 512;
-    const [c, g] = canvas(S);
-    g.fillStyle = face; g.fillRect(0, 0, S, S);
-    const r = rng(29);
-    grain(g, S, S, kind, r);
-    const path = (k = 1) => {
+    const path = (g, k = 1) => {
       g.beginPath();
       pts.forEach(([u, v], i) => {
         const x = (0.5 + (u - 0.5) * k) * S, y = (1 - (0.5 + (v - 0.5) * k)) * S;
@@ -611,28 +705,116 @@ export function shieldFaceTexture(key, pts, face, kind, emblem, emblemC, { scale
       });
       g.closePath();
     };
-    // soft inner shadow towards the rim + gentle dome highlight
-    g.save(); path(); g.clip();
+    const ornaments = (g, col, mask) => {
+      g.save(); path(g, 1.0); g.clip();
+      if (deco.includes('innerLine')) { g.lineWidth = 5; g.strokeStyle = col; path(g, 0.84); g.stroke(); }
+      if (deco.includes('chevron')) {
+        g.lineWidth = 12; g.strokeStyle = mask ? '#fff' : '#b9823f'; path(g, 0.8); g.stroke();
+        g.lineWidth = 22; g.beginPath(); g.moveTo(S * 0.06, S * 0.4); g.quadraticCurveTo(S * 0.5, S * 0.1, S * 0.94, S * 0.4); g.stroke();
+      }
+      if (deco.includes('wreath')) {
+        const R = S * 0.31;
+        for (let i = 0; i < 20; i++) {
+          const a = (i / 20) * Math.PI * 2 + Math.PI / 20;
+          if (i % 5 === 4) continue; // gaps between four leafy arcs
+          smallSprig(g, S / 2 + Math.cos(a) * R, S / 2 + Math.sin(a) * R, S * 0.06, a, col);
+        }
+      }
+      if (deco.includes('sprigsTB')) {
+        smallSprig(g, S / 2, S * 0.17, S * 0.05, 0, col);
+        smallSprig(g, S / 2, S * 0.83, S * 0.05, Math.PI, col);
+      }
+      if (deco.includes('corners')) {
+        for (const [x, y, a] of [[0.24, 0.24, -0.78], [0.76, 0.24, 0.78], [0.24, 0.76, -2.35], [0.76, 0.76, 2.35]]) smallSprig(g, S * x, S * y, S * 0.04, a, col);
+      }
+      g.restore();
+    };
+    const relief = (g, col, mask) => {
+      if (!emblem) return;
+      g.save(); g.translate(S / 2, S / 2); g.scale(S * scale, S * scale);
+      if (!mask) { g.save(); g.translate(0.025, 0.03); drawEmblem(g, emblem, 'rgba(30,15,5,0.45)'); g.restore(); }
+      drawEmblem(g, emblem, mask ? '#fff' : goldGradient(g, col));
+      if (!mask) { g.save(); g.translate(-0.012, -0.014); g.globalAlpha = 0.3; drawEmblem(g, emblem, '#fff8e0'); g.restore(); }
+      g.restore();
+    };
+    // colour
+    const [c, g] = canvas(S);
+    g.fillStyle = face; g.fillRect(0, 0, S, S);
+    const r = rng(29);
+    grain(g, S, S, kind, r);
+    if (deco.includes('sideBands')) {
+      g.save(); path(g); g.clip();
+      g.fillStyle = band; g.fillRect(0, 0, S * 0.28, S); g.fillRect(S * 0.72, 0, S * 0.28, S);
+      g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(S * 0.28 - 3, 0, 3, S); g.fillRect(S * 0.72, 0, 3, S);
+      grain(g, S, S, 'painted', rng(31));
+      g.restore();
+    }
+    if (deco.includes('lacing')) {
+      g.save(); g.strokeStyle = '#efe2c2'; g.lineWidth = 5; g.lineCap = 'round';
+      for (let i = 0; i < 8; i++) {
+        const [u, v] = pts[Math.floor((i / 8) * pts.length)];
+        const x = u * S, y = (1 - v) * S, dx = x - S / 2, dy = y - S / 2, d = Math.hypot(dx, dy);
+        const nx = dx / d, ny = dy / d, tx = -ny, ty = nx;
+        for (const o of [-8, 0, 8]) { g.beginPath(); g.moveTo(x - nx * 22 + tx * o, y - ny * 22 + ty * o); g.lineTo(x + tx * o, y + ty * o); g.stroke(); }
+      }
+      g.restore();
+    }
+    g.save(); path(g); g.clip();
     g.shadowColor = 'rgba(40,20,5,0.55)'; g.shadowBlur = 38;
-    g.lineWidth = 30; g.strokeStyle = 'rgba(40,20,5,0.35)'; path(1.02); g.stroke();
+    g.lineWidth = 30; g.strokeStyle = 'rgba(40,20,5,0.3)'; path(g, 1.02); g.stroke();
     g.shadowBlur = 0;
-    const hg = g.createRadialGradient(S * 0.42, S * 0.36, 10, S * 0.5, S * 0.5, S * 0.6);
-    hg.addColorStop(0, 'rgba(255,255,255,0.16)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
+    const hg = g.createRadialGradient(S * 0.4, S * 0.34, 10, S * 0.5, S * 0.5, S * 0.62);
+    hg.addColorStop(0, 'rgba(255,255,255,0.2)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = hg; g.fillRect(0, 0, S, S);
     g.restore();
     if (stitch) {
       g.setLineDash([9, 7]); g.lineWidth = 3.5; g.lineCap = 'round';
-      g.strokeStyle = shade(face, -0.3); path(0.88); g.stroke();
-      g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 1.5; g.save(); g.translate(-1, -1); path(0.88); g.stroke(); g.restore();
+      g.strokeStyle = shade(face, -0.3); path(g, deco.includes('chevron') ? 0.72 : 0.88); g.stroke();
       g.setLineDash([]);
     }
-    if (emblem) {
-      g.save(); g.translate(S / 2, S / 2); g.scale(S * scale, S * scale);
-      g.save(); g.translate(0.025, 0.03); drawEmblem(g, emblem, 'rgba(30,15,5,0.45)'); g.restore();
-      drawEmblem(g, emblem, goldGradient(g, emblemC));
-      g.save(); g.translate(-0.012, -0.014); g.globalAlpha = 0.3; drawEmblem(g, emblem, '#fff8e0'); g.restore();
-      g.restore();
-    }
+    ornaments(g, emblemC, false);
+    relief(g, emblemC, false);
+    const map = finish(c);
+    // metal mask
+    const [cm, gm] = canvas(S);
+    gm.fillStyle = '#000'; gm.fillRect(0, 0, S, S);
+    ornaments(gm, '#fff', true);
+    relief(gm, '#fff', true);
+    const mask = finish(cm, { srgb: false });
+    return { map, mask };
+  });
+}
+
+// Emblem decal for a chest piece: transparent background + metal mask.
+export function decalTextures(emblem, color, { scale = 0.42 } = {}) {
+  return cached(`decal:${emblem}:${color}:${scale}`, () => {
+    const S = 512;
+    const [c, g] = canvas(S);
+    g.translate(S / 2, S / 2); g.scale(S * scale, S * scale);
+    g.save(); g.translate(0.025, 0.035); drawEmblem(g, emblem, 'rgba(30,15,5,0.5)'); g.restore();
+    drawEmblem(g, emblem, goldGradient(g, color));
+    g.save(); g.translate(-0.012, -0.015); g.globalAlpha = 0.35; drawEmblem(g, emblem, '#fff8e0'); g.restore();
+    const [cm, gm] = canvas(S);
+    gm.fillStyle = '#000'; gm.fillRect(0, 0, S, S);
+    gm.translate(S / 2, S / 2); gm.scale(S * scale, S * scale);
+    drawEmblem(gm, emblem, '#fff');
+    return { map: finish(c), mask: finish(cm, { srgb: false }) };
+  });
+}
+
+// Broad gold yoke collar with an engraved lotus and laurel (Pearl Lotus Shell). u around (0.5 = front).
+export function yokeTexture() {
+  return cached('yoke', () => {
+    const W = 1024, H = 160;
+    const [c, g] = canvas(W, H);
+    const grd = g.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#f0cf73'); grd.addColorStop(0.5, '#d9ae4f'); grd.addColorStop(1, '#b88a35');
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+    const eng = 'rgba(110,70,20,0.75)';
+    g.save(); g.translate(W * 0.5, H * 0.52); g.scale(H * 0.42, H * 0.42); g.strokeStyle = eng; g.fillStyle = eng;
+    drawEmblem(g, 'lotusline', eng); g.restore();
+    for (const [x, a] of [[0.4, -1.57], [0.6, 1.57], [0.33, -1.57], [0.67, 1.57]]) smallSprig(g, W * x, H * 0.5, H * 0.16, a, eng);
+    g.fillStyle = 'rgba(110,70,20,0.5)'; g.fillRect(0, 6, W, 3); g.fillRect(0, H - 9, W, 3);
     return finish(c);
   });
 }
@@ -679,7 +861,27 @@ export function clothTexture(spec) {
         g.fillStyle = grd; g.fillRect(x, 0, 16, H * (spec.pleatsTop ?? 1));
       }
     }
-    if (spec.quilt) {
+    if (spec.quilt === 'vertical') { // padded vertical channels
+      for (let x = 0; x < W; x += 40) {
+        const grd = g.createLinearGradient(x, 0, x + 40, 0);
+        grd.addColorStop(0, 'rgba(0,0,0,0.16)'); grd.addColorStop(0.5, 'rgba(255,255,255,0.12)'); grd.addColorStop(1, 'rgba(0,0,0,0.16)');
+        g.fillStyle = grd; g.fillRect(x, 0, 40, H);
+      }
+      g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 2.5; g.setLineDash([7, 6]);
+      for (let x = 0; x < W; x += 40) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+      g.setLineDash([]);
+    } else if (spec.quilt === 'lotus') { // overlapping pointed petals
+      for (let row = 0; row < 6; row++) {
+        const y = H - row * 92 + 30;
+        for (let x = row % 2 ? 0 : 42; x < W + 84; x += 84) {
+          const grd = g.createLinearGradient(x, y - 110, x, y);
+          grd.addColorStop(0, 'rgba(255,255,255,0.12)'); grd.addColorStop(1, 'rgba(0,0,0,0.12)');
+          g.fillStyle = grd;
+          g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 46, y - 50, x, y - 118); g.quadraticCurveTo(x - 46, y - 50, x, y); g.fill();
+          g.strokeStyle = 'rgba(0,0,0,0.26)'; g.lineWidth = 2.5; g.setLineDash([7, 5]); g.stroke(); g.setLineDash([]);
+        }
+      }
+    } else if (spec.quilt) {
       g.strokeStyle = 'rgba(0,0,0,0.22)'; g.lineWidth = 3; g.setLineDash([8, 6]);
       if (spec.quilt === 'petal') {
         for (let y = 0; y < H + 40; y += 46) for (let x = (y / 46) % 2 ? 23 : 0; x < W + 46; x += 46) { g.beginPath(); g.arc(x, y, 26, 0, Math.PI); g.stroke(); }
@@ -691,16 +893,17 @@ export function clothTexture(spec) {
       g.fillStyle = 'rgba(255,255,255,0.06)';
       for (let x = 0; x < W; x += 42) for (let y = 0; y < H; y += 42) g.fillRect(x + 8, y + 8, 18, 18);
     }
-    if (spec.scales) {
-      const sc = spec.scales;
-      for (let row = 0; row < 15; row++) {
-        const y = H - row * 36;
-        for (let x = row % 2 ? 0 : 18; x < W + 36; x += 36) {
-          const grd = g.createRadialGradient(x - 6, y - 26, 2, x, y - 16, 26);
-          grd.addColorStop(0, shade(sc, 0.18)); grd.addColorStop(1, shade(sc, -0.12));
+    if (spec.scales) { // large rounded scales, bottom row first so upper rows overlap
+      const sc = spec.scales, SW = 46, SH = 58, hw = SW / 2 - 1;
+      for (let row = 0; row < 11; row++) {
+        const y = H + 8 - row * (SH * 0.78);
+        for (let x = row % 2 ? 0 : SW / 2; x < W + SW; x += SW) {
+          const grd = g.createRadialGradient(x - 8, y - SH * 0.55, 2, x, y - SH * 0.3, SH * 0.6);
+          grd.addColorStop(0, shade(sc, 0.2)); grd.addColorStop(1, shade(sc, -0.14));
           g.fillStyle = grd;
-          g.beginPath(); g.moveTo(x - 17, y - 34); g.lineTo(x - 17, y - 14); g.quadraticCurveTo(x - 17, y + 2, x, y + 4); g.quadraticCurveTo(x + 17, y + 2, x + 17, y - 14); g.lineTo(x + 17, y - 34); g.fill();
-          g.strokeStyle = spec.scaleEdge || 'rgba(0,0,0,0.3)'; g.lineWidth = spec.scaleEdge ? 3 : 2; g.stroke();
+          g.beginPath(); g.moveTo(x - hw, y - SH); g.lineTo(x - hw, y - SH * 0.45); g.quadraticCurveTo(x - hw, y + 2, x, y + 4); g.quadraticCurveTo(x + hw, y + 2, x + hw, y - SH * 0.45); g.lineTo(x + hw, y - SH); g.fill();
+          g.strokeStyle = spec.scaleEdge || 'rgba(0,0,0,0.35)'; g.lineWidth = spec.scaleEdge ? 4 : 2.5; g.stroke();
+          g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x - 3, y - SH * 0.8, 2, SH * 0.5);
         }
       }
     }

@@ -49,7 +49,7 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
 
   const send = (patch) => {
     // merge nested voting patches
-    pending = { ...pending, ...patch, voting: { ...(pending.voting || {}), ...(patch.voting || {}), teamMultipliers: { ...(pending.voting?.teamMultipliers || {}), ...(patch.voting?.teamMultipliers || {}) } } };
+    pending = { ...pending, ...patch, voting: { ...(pending.voting || {}), ...(patch.voting || {}) } };
     clearTimeout(sendTimer);
     sendTimer = setTimeout(() => { socket.emit('host:settings', pending); pending = {}; }, 200);
   };
@@ -91,7 +91,7 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
         h('div.join-box',
           h('img', { src: `/qr.svg?text=${encodeURIComponent(url)}`, alt: 'QR code to join' }),
           h('div',
-            h('div.muted', 'Students join at'),
+            h('div.muted', 'Teams join at'),
             h('div.url', url.replace(/^https?:\/\//, '')),
             h('div.muted', { style: { marginTop: '6px' } }, 'with code'),
             h('div.big-code', st.code))),
@@ -109,8 +109,8 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
         h('div#h-ready.muted', { style: { textAlign: 'center', marginTop: '8px' } })));
     }
     const tabs = st.phase === 'lobby'
-      ? [['players', '👥 Players'], ['game', '⏱️ Game'], ['questions', '📜 Questions'], ['voting', '⚖️ Voting'], ['teams', '🏳️ Teams']]
-      : [['progress', '👗 Progress'], ['players', '👥 Players'], ['game', '⏱️ Game'], ['questions', '📜 Questions'], ['voting', '⚖️ Voting']];
+      ? [['players', '👥 Teams'], ['game', '⏱️ Game'], ['questions', '📜 Questions'], ['voting', '⚖️ Voting']]
+      : [['progress', '👗 Progress'], ['players', '👥 Teams'], ['game', '⏱️ Game'], ['questions', '📜 Questions'], ['voting', '⚖️ Voting']];
     if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
     out.push(h('div.h-tabs', ...tabs.map(([k, l]) => h('button.h-tab', { class: tab === k ? 'on' : '', on: { click: () => { tab = k; renderedTab = ''; render(); } } }, l))));
     const card = h('div.card.h-card');
@@ -122,15 +122,13 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
 
   function buildTab(st) {
     switch (tab) {
-      case 'players': return [h('div.row.between', h('h3', 'Players'), h('div.row',
-        st.teams.length > 1 ? h('button.btn.small', { on: { click: () => socket.emit('host:balanceTeams') } }, '⚖️ Balance teams') : null)),
-      h('p.muted', 'Tap “Teacher” to make a helper a judge — judges vote with extra weight and don’t walk the runway.'),
-      h('div.plist#h-plist')];
+      case 'players': return [h('h3', 'Teams'),
+        h('p.muted', 'Each device that joins is a team. Set how many players are in each team: their stars count once per player, so bigger teams have a bigger say. Switch a device to “Teacher” to make it a judge.'),
+        h('div.plist#h-plist')];
       case 'progress': return [h('h3', 'Styling progress'), h('div.progress-grid#h-progress')];
       case 'game': return buildGame(st);
       case 'questions': return buildQuestions(st);
       case 'voting': return buildVoting(st);
-      case 'teams': return buildTeams(st);
       default: return [];
     }
   }
@@ -161,13 +159,11 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     return [
       h('h3', 'Game settings'),
       slider('Styling time', s.styleSeconds, { min: 60, max: 1200, step: 30, fmt: (v) => fmtTime(v * 1000), onInput: (v) => send({ styleSeconds: v }), hint: 'How long students have to dress up and answer questions.' }),
-      slider('Runway time per student', s.presentSeconds, { min: 15, max: 45, step: 1, fmt: (v) => `${v}s`, onInput: (v) => send({ presentSeconds: v }), hint: 'Walk + poses + prayer bubble + voting.' }),
+      slider('Runway time per team', s.presentSeconds, { min: 15, max: 45, step: 1, fmt: (v) => `${v}s`, onInput: (v) => send({ presentSeconds: v }), hint: 'Walk + poses + prayer bubble + voting.' }),
       slider('Coins per correct answer', s.coinsPerCorrect, { min: 1, max: 50, step: 1, fmt: (v) => `${v} 🪙`, onInput: (v) => send({ coinsPerCorrect: v }), hint: 'A coins column in the CSV overrides this per question.' }),
       slider('Starting coins', s.startCoins, { min: 0, max: 200, step: 5, fmt: (v) => `${v} 🪙`, onInput: (v) => send({ startCoins: v }) }),
       slider('Shop prices', s.priceScale, { min: 0.25, max: 2, step: 0.25, fmt: (v) => `×${v}`, onInput: (v) => send({ priceScale: v }), hint: 'Base prices: armor 15–35, poses 15–30, bonus wardrobe 30–80 coins.' }),
       toggle('Unlock everything', s.unlockAll, (v) => send({ unlockAll: v }), 'Free-play mode: all costumes and poses open, no coins needed.'),
-      select('Teams', s.teamMode, [['choose', 'Students choose their team'], ['auto', 'Auto-assign (balanced)']], (v) => send({ teamMode: v })),
-      toggle('Students name their teams', s.studentTeamNames !== false, (v) => send({ studentTeamNames: v }), 'Any team member can name or rename their team in the lobby or while styling. You can still override names in the Teams tab.'),
     ];
   }
 
@@ -220,64 +216,48 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     const sv = (patch) => send({ voting: patch });
     return [
       h('h3', 'Voting weights'),
-      h('p.muted', 'Every vote is 1–5 stars. A presenter’s score is the weighted average of the stars they get, plus bonuses.'),
-      slider('Host (you)', v.hostWeight, { min: 0, max: 20, step: 0.5, fmt: (x) => `×${x}`, onInput: (x) => sv({ hostWeight: x }), key: 'hostWeight', hint: 'The teacher has the highest weight by default.' }),
-      slider('Helper teachers (judges)', v.judgeWeight, { min: 0, max: 20, step: 0.5, fmt: (x) => `×${x}`, onInput: (x) => sv({ judgeWeight: x }), key: 'judgeWeight' }),
-      slider('Each student', v.studentWeight, { min: 0, max: 5, step: 0.25, fmt: (x) => `×${x}`, onInput: (x) => sv({ studentWeight: x }), key: 'studentWeight' }),
-      select('Adjust for team size', v.normalize, [['equal', 'Equal power per team'], ['sqrt', 'Partly balanced (√)'], ['none', 'No adjustment']], (x) => sv({ normalize: x }),
-        'Equal: a team of 3 gets the same total say as a team of 8 (each small-team vote counts more). √: halfway. None: every student counts the same.'),
-      select('Votes for teammates', v.teammateVotes, [['half', 'Count half'], ['full', 'Count fully'], ['none', 'Don’t count']], (x) => sv({ teammateVotes: x }), 'Nobody can vote for themselves.'),
-      h('div.section-label', 'Per-team fine tuning'),
-      h('div#h-teammult'),
+      h('p.muted', 'Every vote is 1–5 stars. A team’s score is the weighted average of the stars it gets, plus bonuses. Teams can’t vote for themselves.'),
+      slider('Each player in a team', v.studentWeight, { min: 0.25, max: 5, step: 0.25, fmt: (x) => `×${x}`, onInput: (x) => sv({ studentWeight: x }), key: 'studentWeight',
+        hint: 'A team’s vote counts this much per player — set the number of players for each team in the Teams tab.' }),
+      slider('Host (you)', v.hostWeight, { min: 0, max: 40, step: 1, fmt: (x) => `×${x}`, onInput: (x) => sv({ hostWeight: x }), key: 'hostWeight' }),
+      toggle('Keep my vote the highest', v.hostAlwaysHighest !== false, (x) => sv({ hostAlwaysHighest: x }), 'If a big team would outweigh you, your vote is raised to stay just above it.'),
+      slider('Helper teachers (judges)', v.judgeWeight, { min: 0, max: 40, step: 1, fmt: (x) => `×${x}`, onInput: (x) => sv({ judgeWeight: x }), key: 'judgeWeight' }),
       slider('Full armor bonus', v.fullArmorBonus, { min: 0, max: 2, step: 0.25, fmt: (x) => `+${x}★`, onInput: (x) => sv({ fullArmorBonus: x }), key: 'fullArmorBonus', hint: 'Added when all six pieces are worn.' }),
       slider('Prayer bonus', v.prayerBonus, { min: 0, max: 1, step: 0.25, fmt: (x) => `+${x}★`, onInput: (x) => sv({ prayerBonus: x }), key: 'prayerBonus' }),
-      select('Team score', v.teamScore, [['average', 'Average of members'], ['total', 'Total of members']], (x) => sv({ teamScore: x })),
       h('div.section-label', 'Live voting power'),
       h('div#h-wtable'),
     ];
   }
 
-  function buildTeams(st) {
-    const count = h('select', ...[1, 2, 3, 4, 5, 6].map((n) => h('option', { value: n }, `${n} team${n > 1 ? 's' : ''}`)));
-    count.value = st.teams.length;
-    const names = h('div.qform');
-    const fill = (n) => {
-      const cur = [...names.querySelectorAll('input')].map((i) => i.value);
-      names.replaceChildren(...Array.from({ length: n }, (_, i) => h('input', { value: cur[i] ?? st.teams[i]?.name ?? '', placeholder: `Team ${i + 1}`, maxLength: 20 })));
-      names.querySelectorAll('input').forEach((inp, i) => { inp.value = cur[i] ?? st.teams[i]?.name ?? ['Red Team', 'Blue Team', 'Pink Team', 'Green Team', 'Gold Team', 'Purple Team'][i]; inp.dataset.team = i; inp.addEventListener('input', () => { inp.dataset.dirty = '1'; }); });
-    };
-    fill(st.teams.length);
-    count.addEventListener('change', () => fill(Number(count.value)));
-    return [h('h3', 'Teams'),
-      h('p.muted', st.settings.studentTeamNames !== false ? 'Students can name their own teams (change this in the Game tab). Names they choose appear here as they type them in.' : 'You are choosing the team names.'),
-      h('div.field', h('span.lbl', 'Number of teams'), count), names, h('div#h-namedby.muted'),
-      h('div.modal-actions', h('button.btn.primary', { on: { click: () => socket.emit('host:teams', { count: Number(count.value), names: [...names.querySelectorAll('input')].map((i) => i.value) }, () => { toast('Teams saved'); renderedTab = ''; }) } }, 'Save teams'))];
-  }
-
   // ---------------- live refresh (no full rebuild)
   function refreshLive(st) {
-    const teamOf = (id) => st.teams.find((t) => t.id === id);
     const students = st.players.filter((p) => p.role === 'player');
+    const people = students.reduce((a, p) => a + (p.members || 1), 0);
     const cnt = $('#h-count');
-    if (cnt) cnt.textContent = `${students.length} student${students.length === 1 ? '' : 's'} joined · ${st.questionCount} questions`;
+    if (cnt) cnt.textContent = `${students.length} team${students.length === 1 ? '' : 's'} (${people} player${people === 1 ? '' : 's'}) · ${st.questionCount} questions`;
     const ready = $('#h-ready');
     if (ready) ready.textContent = `${students.filter((p) => p.ready).length}/${students.length} ready for the runway`;
 
     const pl = $('#h-plist');
     if (pl) {
-      if (!st.players.length) pl.replaceChildren(h('p.muted', 'Waiting for students to join…'));
-      else pl.replaceChildren(...st.players.slice().sort((a, b) => a.team.localeCompare(b.team) || a.name.localeCompare(b.name)).map((p) => {
-        const t = teamOf(p.team);
-        const teamSel = h('select', ...st.teams.map((x) => h('option', { value: x.id }, x.name)));
-        teamSel.value = p.team;
-        teamSel.addEventListener('change', () => socket.emit('host:player', { id: p.id, team: teamSel.value }));
-        const roleSel = h('select', h('option', { value: 'player' }, 'Student'), h('option', { value: 'judge' }, 'Teacher'));
+      if (!st.players.length) pl.replaceChildren(h('p.muted', 'Waiting for teams to join…'));
+      else pl.replaceChildren(...st.players.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
+        const roleSel = h('select', h('option', { value: 'player' }, 'Team'), h('option', { value: 'judge' }, 'Teacher'));
         roleSel.value = p.role;
         roleSel.addEventListener('change', () => socket.emit('host:player', { id: p.id, role: roleSel.value }));
+        const n = p.members || 1;
+        const setN = (k) => socket.emit('host:player', { id: p.id, members: Math.max(1, Math.min(30, k)) });
+        const weight = (st.settings.voting?.studentWeight ?? 1) * n;
         return h('div.prow', { class: p.connected ? '' : 'offline' },
-          h('div', h('div.pn', h('span.team-dot', { style: { background: t?.color } }), p.name, p.connected ? '' : ' (offline)'),
-            h('div.ps', `${p.role === 'judge' ? '⚖️ judge' : `${p.armor}/6 armor`} · ${p.coins} 🪙`)),
-          h('div.pc', st.teams.length > 1 ? teamSel : null, roleSel,
+          h('div', h('div.pn', h('span.team-dot', { style: { background: p.color } }), p.name, p.connected ? '' : ' (offline)'),
+            h('div.ps', p.role === 'judge' ? '⚖️ judge' : `${p.armor}/6 armor · ${p.coins} 🪙 · stars count ×${+weight.toFixed(2)}`)),
+          h('div.pc',
+            p.role === 'player' ? h('div.stepper', { title: 'Players in this team' },
+              h('button.btn.small', { 'aria-label': 'Fewer players', on: { click: () => setN(n - 1) } }, '−'),
+              h('span.sv', `👥 ${n}`),
+              h('button.btn.small', { 'aria-label': 'More players', on: { click: () => setN(n + 1) } }, '+')) : null,
+            roleSel,
+            h('button.btn.small', { title: 'Rename team', on: { click: () => renameBox(p) } }, '✏️'),
             h('button.btn.small', { title: 'Give 10 coins', on: { click: () => socket.emit('host:player', { id: p.id, coins: 10 }) } }, '+10🪙'),
             h('button.btn.small.danger', { title: 'Remove', on: { click: () => confirmBox(`Remove ${p.name}?`, 'They can rejoin with the code.', () => socket.emit('host:player', { id: p.id, kick: true })) } }, '✕')));
       }));
@@ -286,9 +266,9 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     if (pg) {
       const full = new Map(extra.players.map((p) => [p.id, p]));
       pg.replaceChildren(...students.map((p) => {
-        const t = teamOf(p.team), x = full.get(p.id) || {};
+        const x = full.get(p.id) || {};
         return h('div.pcard', { class: p.connected ? '' : 'offline' },
-          h('div.pn', h('span.team-dot', { style: { background: t?.color } }), p.name, p.ready ? ' ✅' : ''),
+          h('div.pn', h('span.team-dot', { style: { background: p.color } }), p.name, p.ready ? ' ✅' : ''),
           h('div.bar', h('i', { style: { width: `${(p.armor / 6) * 100}%` } })),
           h('div.ps', `${p.armor}/6 armor · ${p.coins} 🪙 · ${x.correct ?? 0}✓ ${x.wrong ?? 0}✗`),
           x.prayer ? h('div.ps', { style: { marginTop: '4px', fontStyle: 'italic' } }, `🙏 “${x.prayer}” `,
@@ -305,32 +285,19 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     }
     const qs = $('#h-qsrc');
     if (qs) qs.textContent = `${extra.questions.length} questions · ${extra.questionSource || ''}`;
-    // team names typed by students show up live (unless the teacher is editing that box)
-    for (const inp of main.querySelectorAll('input[data-team]')) {
-      const t = st.teams[Number(inp.dataset.team)];
-      if (t && !inp.dataset.dirty && document.activeElement !== inp && inp.value !== t.name) inp.value = t.name;
-    }
-    const nb = $('#h-namedby');
-    if (nb) nb.textContent = st.teams.map((t) => `${t.name}: ${t.named ? `named by ${t.namedBy || 'a student'}` : 'not named yet'}`).join(' · ');
-    const tm = $('#h-teammult');
-    if (tm && tm.childElementCount !== st.teams.length) {
-      tm.replaceChildren(...st.teams.map((t) => slider(`${t.name} multiplier`, st.settings.voting.teamMultipliers?.[t.id] ?? 1, {
-        min: 0, max: 3, step: 0.1, fmt: (x) => `×${x.toFixed(1)}`, onInput: (x) => send({ voting: { teamMultipliers: { [t.id]: x } } }),
-      })));
-    }
     const wt = $('#h-wtable');
     if (wt) {
-      const tw = teamWeights(st.players, st.teams, st.settings.voting);
+      const tw = teamWeights(st.players, st.settings.voting);
       const v = { ...DEFAULT_VOTING, ...st.settings.voting };
       const pct = (x) => (tw.grand ? (x / tw.grand) * 100 : 0);
-      const row = (name, n, each, total, color) => h('tr', h('td', color ? h('span.team-dot', { style: { background: color, marginRight: '6px' } }) : null, name), h('td', n), h('td', each.toFixed(2)), h('td', total.toFixed(2)),
-        h('td', h('div.share-bar', h('i', { style: { width: `${pct(total)}%` } })), `${pct(total).toFixed(0)}%`));
+      const row = (name, n, w, color) => h('tr', h('td', color ? h('span.team-dot', { style: { background: color, marginRight: '6px' } }) : null, name), h('td', n), h('td', `×${+w.toFixed(2)}`),
+        h('td', h('div.share-bar', h('i', { style: { width: `${pct(w)}%` } })), `${pct(w).toFixed(0)}%`));
       wt.replaceChildren(h('table.wtable',
-        h('tr', h('th', 'Voter'), h('th', '#'), h('th', 'Each'), h('th', 'Total'), h('th', 'Share')),
-        row('Host (you)', 1, v.hostWeight, v.hostWeight),
-        tw.judges ? row('Helper teachers', tw.judges, v.judgeWeight, tw.judges * v.judgeWeight) : null,
-        ...tw.rows.map((r) => row(r.team.name, r.size, r.each, r.total, r.team.color))),
-      h('p.muted', `Teammate votes ${v.teammateVotes === 'half' ? 'count half' : v.teammateVotes === 'none' ? 'are ignored' : 'count fully'}. The share shown is each group's slice of the total voting power for a typical presenter.`));
+        h('tr', h('th', 'Voter'), h('th', 'Players'), h('th', 'Vote'), h('th', 'Share')),
+        row('Host (you)', '', tw.host),
+        tw.judges ? row(`Helper teachers (${tw.judges})`, '', tw.judges * v.judgeWeight) : null,
+        ...tw.rows.map((r) => row(r.team.name, r.members, r.weight, r.team.color))),
+      h('p.muted', tw.host > v.hostWeight ? `Your vote was raised to ×${tw.host} so it stays above the biggest team.` : 'Share = each voter’s slice of the total voting power.'));
     }
     // keep sliders in sync if changed elsewhere (e.g. another host tab)
     for (const inp of main.querySelectorAll('input[type=range][data-key]')) {
@@ -338,6 +305,14 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
       const val = st.settings.voting[k];
       if (val != null && Number(inp.value) !== val) { inp.value = val; inp._val.textContent = inp._fmt(val); }
     }
+  }
+
+  function renameBox(p) {
+    const input = h('input.team-name-input', { maxLength: 20, value: p.name });
+    modal(h('h3', 'Rename team'), input, h('div.modal-actions',
+      h('button.btn', { on: { click: closeModal } }, 'Cancel'),
+      h('button.btn.primary', { on: { click: () => { socket.emit('host:player', { id: p.id, name: input.value }); closeModal(); } } }, 'Save')));
+    setTimeout(() => input.focus(), 50);
   }
 
   function tick() {
@@ -356,7 +331,7 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
         h('button.btn.small', { on: { click: () => socket.emit('host:runway', { action: rw.paused ? 'resume' : 'pause' }) } }, rw.paused ? '▶ Resume' : '⏸ Pause'),
         h('button.btn.small', { on: { click: () => socket.emit('host:runway', { action: 'replay' }) } }, '↺ Replay'),
         h('button.btn.small.primary', { on: { click: () => socket.emit('host:runway', { action: 'next' }) } }, 'Next ›')),
-      h('button.btn.small.ghost', { on: { click: () => confirmBox('Skip to results?', 'Remaining students won\'t present.', () => socket.emit('host:runway', { action: 'finish' })) } }, 'Finish & show results'),
+      h('button.btn.small.ghost', { on: { click: () => confirmBox('Skip to results?', 'Remaining teams won\'t present.', () => socket.emit('host:runway', { action: 'finish' })) } }, 'Finish & show results'),
       h('div.tally#h-tally'),
     );
     box._paused = rw.paused;

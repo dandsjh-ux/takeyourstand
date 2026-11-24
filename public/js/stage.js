@@ -83,8 +83,9 @@ export class Stage {
     if (!this.thumbScene) {
       const sc = new THREE.Scene();
       sc.environment = this.envTex;
-      sc.add(new THREE.HemisphereLight('#fff6e8', '#b59a76', 1.2));
-      const d = new THREE.DirectionalLight('#ffffff', 2.2); d.position.set(1.5, 2.5, 3); sc.add(d);
+      sc.add(new THREE.HemisphereLight('#fff6e8', '#b59a76', 0.4));
+      const d = new THREE.DirectionalLight('#ffffff', 0.95); d.position.set(1.5, 2.5, 3); sc.add(d);
+      sc.environmentIntensity = 0.3;
       this.thumbScene = sc;
       this.thumbCam = new THREE.PerspectiveCamera(30, 1, 0.01, 20);
       this.thumbRT = new THREE.WebGLRenderTarget(size, size, { samples: 4 });

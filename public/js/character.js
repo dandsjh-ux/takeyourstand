@@ -24,18 +24,29 @@ export const PROFILES = {
 export const HEAD_R = 0.165;
 export const HEAD_C = new THREE.Vector3(0, 0.13, 0);
 export const HEAD_SCALE = new THREE.Vector3(1, 1.06, 0.98);
+export const HEAD_SLIM = new THREE.Vector3(0.87, 0.97, 0.84);
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 // narrower towards the jaw/chin (yr = unit-sphere height, 1 = crown, -1 = chin)
 export const jawTaper = (yr) => 1 - 0.12 * Math.pow(smooth01((0.1 - yr) / 1.1), 1.5);
 export const frontTaper = (yr) => 1 - 0.03 * smooth01((0.1 - yr) / 1.1);
 const backTaper = (yr) => 1 - 0.1 * smooth01((0.15 - yr) / 1.15);
-export function deformHead(geo, R) {
+export const EYE_X = 0.057, EYE_Y = 0.127; // eye centres in head-joint space
+export function deformHead(geo, R, sockets = false) {
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const yr = pos.getY(i) / R;
     pos.setX(i, pos.getX(i) * jawTaper(yr));
     const z = pos.getZ(i);
     pos.setZ(i, z * (z > 0 ? frontTaper(yr) : backTaper(yr)));
+    if (sockets && z > 0) {
+      // shallow eye sockets so the eyes sit inside the face (brow and cheek wrap around them)
+      const x = pos.getX(i), y = pos.getY(i) * HEAD_SCALE.y + HEAD_C.y;
+      for (const sx of [-1, 1]) {
+        const dx = (x - sx * EYE_X) / 0.036, dy = (y - EYE_Y) / 0.04;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < 1) pos.setZ(i, pos.getZ(i) - 0.011 * (1 - d2) * (1 - d2));
+      }
+    }
   }
   geo.computeVertexNormals();
 }
@@ -152,6 +163,7 @@ export class Character {
     j.torso = new THREE.Group(); j.torso.position.y = 0.04; j.hips.add(j.torso);
     j.neck = new THREE.Group(); j.neck.position.y = 0.5; j.torso.add(j.neck);
     j.head = new THREE.Group(); j.head.position.y = 0.04; j.neck.add(j.head);
+    j.head.scale.copy(HEAD_SLIM); // slimmer, cuter face; hair and head armour scale with it
     for (const s of ['L', 'R']) {
       const sx = s === 'L' ? 1 : -1;
       const ua = new THREE.Group(); ua.position.set(sx * P.shoulderX, 0.43, 0); j.torso.add(ua);
@@ -188,7 +200,7 @@ export class Character {
     // ---- head: one sculpted mesh (tapered jaw, soft chin) so there are no seams
     const R = HEAD_R, C = HEAD_C;
     const headGeo = new THREE.SphereGeometry(R, 48, 36);
-    deformHead(headGeo, R);
+    deformHead(headGeo, R, true);
     const headM = add(j.head, new THREE.Mesh(headGeo, skin));
     headM.position.copy(C); headM.scale.copy(HEAD_SCALE);
     // ears with an inner fold
@@ -213,11 +225,12 @@ export class Character {
     const glint = new THREE.MeshBasicMaterial({ color: '#ffffff' });
     const lashMat = plain('#1d1410', { roughness: 0.6 });
     const er = girl ? 0.029 : 0.027;
-    const eyeScale = V(1, 1.12, 0.66);
+    const eyeScale = V(1, 1.12, 0.55);
     for (const s of [-1, 1]) {
-      const ex = s * 0.057, ey = 0.127;
+      const ex = s * EYE_X, ey = EYE_Y;
       const g = new THREE.Group();
-      g.position.set(ex, ey, surfZ(ex, ey) - er * eyeScale.z * 0.7);
+      g.position.set(ex, ey, surfZ(ex, ey) - er * eyeScale.z - 0.0035); // eye sits inside its socket
+      g.scale.set(1 / HEAD_SLIM.x, 1 / HEAD_SLIM.y, 1); // keep irises round on the slimmer head
       g.rotation.y = s * 0.08;
       j.head.add(g);
       const ball = new THREE.Mesh(new THREE.SphereGeometry(er, 28, 20), sclera); ball.scale.copy(eyeScale); g.add(ball); this.bodyMeshes.push(ball);
@@ -228,7 +241,7 @@ export class Character {
       const hl2 = new THREE.Mesh(new THREE.SphereGeometry(er * 0.09, 8, 6), glint); hl2.position.set(-er * 0.22, -er * 0.3, front * 0.99); g.add(hl2); this.bodyMeshes.push(hl2);
       // upper lid (skin cap) + lash line, rotated together to blink
       const low = new THREE.Mesh(new THREE.SphereGeometry(er * 1.025, 24, 8, 0, Math.PI * 2, 0, 0.95), skin);
-      low.rotation.x = Math.PI + 0.25; low.scale.copy(eyeScale); g.add(low); this.bodyMeshes.push(low);
+      low.rotation.x = Math.PI + 0.05; low.scale.copy(eyeScale); g.add(low); this.bodyMeshes.push(low);
       const lid = new THREE.Group(); lid.userData.lid = true; lid.userData.lidBase = -0.17; lid.rotation.x = -0.17; g.add(lid);
       const lidCap = new THREE.Mesh(new THREE.SphereGeometry(er * 1.035, 24, 10, 0, Math.PI * 2, 0, 1.05), skin);
       lidCap.scale.copy(eyeScale); lid.add(lidCap); this.bodyMeshes.push(lidCap);
@@ -261,9 +274,9 @@ export class Character {
     }
     // nose: bridge + rounded tip + nostril shading
     const nb = add(j.head, new THREE.Mesh(new THREE.CapsuleGeometry(0.0085, 0.026, 4, 10), skin));
-    nb.position.set(0, 0.112, surfZ(0, 0.112) - 0.003); nb.rotation.x = -0.32;
-    const tip = add(j.head, new THREE.Mesh(new THREE.SphereGeometry(0.0135, 16, 12), skin));
-    tip.position.set(0, 0.093, surfZ(0, 0.093) + 0.004); tip.scale.set(1.15, 0.85, 0.85);
+    nb.position.set(0, 0.112, surfZ(0, 0.112) - 0.005); nb.rotation.x = -0.32;
+    const tip = add(j.head, new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), skin));
+    tip.position.set(0, 0.093, surfZ(0, 0.093) - 0.001); tip.scale.set(1.15, 0.85, 0.8);
     for (const s of [-1, 1]) {
       const wing = add(j.head, new THREE.Mesh(new THREE.SphereGeometry(0.0075, 10, 8), skin));
       wing.position.set(s * 0.012, 0.089, surfZ(s * 0.012, 0.089)); wing.scale.set(1, 0.8, 0.8);
@@ -317,12 +330,13 @@ export class Character {
     for (const m of this.hairParts) { m.parent?.remove(m); m.geometry.dispose(); }
     this.hairParts = [];
     const color = HAIR_COLORS[o.hairColor] || HAIR_COLORS[1];
-    const curly = ['crop', 'coils', 'curly', 'puffs'].includes(o.hair);
+    const curly = ['crop', 'coils', 'curly', 'puffs', 'longcurls'].includes(o.hair);
     const kind = curly ? 'curly' : 'straight';
     const hairOpts = { color, map: hairTexture(kind), bumpMap: hairBump(kind), bumpScale: curly ? 3 : 2, roughness: 0.48, metalness: 0.0, sheen: 0.6, sheenRoughness: 0.35, sheenColor: new THREE.Color(shade(color, 0.25)) };
     const mat = new THREE.MeshPhysicalMaterial(hairOpts);
-    const longStyle = ['shoulder', 'braid', 'lowknot', 'lowbun', 'loop', 'twists', 'braidcrown'].includes(o.hair);
-    const capMat = new THREE.MeshPhysicalMaterial({ ...hairOpts, alphaMap: hairlineAlpha(longStyle ? 'long' : 'short', 0.8), alphaTest: 0.5, side: THREE.DoubleSide });
+    const longStyle = o.body === 'girl' || o.hair === 'shepherd';
+    const part = o.body === 'girl' && !['puffs', 'braidcrown'].includes(o.hair) ? 'center' : o.hair === 'sidepart' ? 'side' : null;
+    const capMat = new THREE.MeshPhysicalMaterial({ ...hairOpts, alphaMap: hairlineAlpha(longStyle ? 'long' : 'short', 0.8, part), alphaTest: 0.5, side: THREE.DoubleSide });
     this.hairMat = mat;
     const head = this.j.head;
     const R = HEAD_R, C = HEAD_C;
@@ -427,6 +441,52 @@ export class Character {
       case 'loop': {
         const l = add(new THREE.TorusGeometry(0.055, 0.025, 12, 28), C.clone().add(v(0, -0.07, -0.18)), null, false);
         l.rotation.y = Math.PI / 2;
+        break;
+      }
+      case 'buzz': break; // just the close-cropped scalp
+      case 'sidepart': {
+        // neat locks combed from a side parting across the crown
+        for (let k = 0; k < 7; k++) {
+          const p = onScalp(0.42 + (k % 2) * 0.16, -1.05 + k * 0.3, 1.02);
+          const lock = add(new THREE.SphereGeometry(0.055, 18, 12), p, v(1.35, 0.3, 0.62), true);
+          lock.quaternion.setFromUnitVectors(v(0, 1, 0), p.clone().sub(C).normalize()); lock.rotateY(1.25);
+        }
+        const fr = onScalp(0.6, 0.35, 1.02);
+        const fl = add(new THREE.SphereGeometry(0.05, 18, 12), fr, v(1.4, 0.3, 0.6), true);
+        fl.quaternion.setFromUnitVectors(v(0, 1, 0), fr.clone().sub(C).normalize()); fl.rotateY(0.9);
+        break;
+      }
+      case 'shepherd': {
+        // chin-length waves for boys
+        const pts = [];
+        for (let k = 0; k <= 8; k++) { const t = k / 8; pts.push([0.17 + Math.sin(t * Math.PI * 2) * 0.006 + t * 0.012, 0.06 - t * 0.12]); }
+        add(ellipticLathe(pts.reverse(), { zs: 0.92, phiStart: Math.PI * 0.45, phiLength: Math.PI * 1.1, segs: 32 }), C.clone().add(v(0, -0.02, -0.02)), null, false, null, new THREE.MeshPhysicalMaterial({ ...hairOpts, side: THREE.DoubleSide }));
+        break;
+      }
+      case 'longcurls': {
+        // a cascade of curls down the back and over the shoulders
+        for (let row = 0; row < 6; row++) {
+          const y = 0.02 - row * 0.055, n = 7;
+          for (let k = 0; k < n; k++) {
+            const a = Math.PI + (k / (n - 1) - 0.5) * (2.6 - row * 0.08);
+            const rr = 0.165 + row * 0.006;
+            tuft(0.042 - row * 0.002, C.clone().add(v(Math.sin(a) * rr, y, Math.cos(a) * rr * 0.92 - 0.01)), null, false);
+          }
+        }
+        curlsOnScalp(14, 0.04, 1.1, 1.03);
+        break;
+      }
+      case 'pony': {
+        // high ponytail tied at the back of the crown
+        const tie = onScalp(0.95, Math.PI, 1.02);
+        const band = add(new THREE.TorusGeometry(0.03, 0.012, 8, 18), tie, null, false, null, plain('#c0573f'));
+        band.rotation.x = -0.6;
+        let p = tie.clone().add(v(0, 0.0, -0.035)), r = 0.045;
+        for (let k = 0; k < 9; k++) {
+          const b = tuft(r, p.clone(), v(0.9, 1.25, 0.8), false);
+          b.rotation.x = 0.25;
+          p = p.add(v(0, -0.04, -0.012 + k * 0.004)); r *= 0.95;
+        }
         break;
       }
       case 'puffs': {

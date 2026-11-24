@@ -1,56 +1,40 @@
 // Voting weights & scoring (shared by server + host UI preview).
+// Each joined device is a team. The host sets how many players are in each team; a team's
+// stars count once per player, so bigger teams carry more weight.
 import { armorCount, ARMOR_SLOTS } from './catalog.js';
 
 export const DEFAULT_VOTING = {
-  hostWeight: 5,          // the teacher running the game
-  judgeWeight: 3,         // helper teachers promoted in the lobby
-  studentWeight: 1,       // base weight of each student vote
-  normalize: 'equal',     // 'equal' | 'sqrt' | 'none'  -> how team size adjusts student weight
-  teammateVotes: 'half',  // 'full' | 'half' | 'none'  -> votes for your own teammates
-  teamMultipliers: {},    // teamId -> extra multiplier (granular per-team control)
-  fullArmorBonus: 0.5,    // stars added when all 6 armor pieces are worn
-  prayerBonus: 0.25,      // stars added when a prayer was written
-  teamScore: 'average',   // 'average' | 'total'
+  hostWeight: 10,          // the teacher running the game
+  hostAlwaysHighest: true, // keep the teacher's vote above any single team's
+  judgeWeight: 4,          // helper teachers promoted in the lobby
+  studentWeight: 1,        // weight of each player in a team
+  fullArmorBonus: 0.5,     // stars added when all 6 armor pieces are worn
+  prayerBonus: 0.25,       // stars added when a prayer was written
 };
 
-// players: [{id, team, role}] (role 'player' = student, 'judge' = helper teacher)
-export function teamWeights(players, teams, voting) {
+const membersOf = (p) => Math.max(1, Math.round(Number(p?.members) || 1));
+
+// Voting power of every voter group for the live table and for scoring.
+export function teamWeights(players, voting) {
   const v = { ...DEFAULT_VOTING, ...voting };
-  const sizes = {};
-  for (const t of teams) sizes[t.id] = 0;
-  for (const p of players) if (p.role === 'player' && sizes[p.team] != null) sizes[p.team]++;
-  const active = Object.values(sizes).filter((n) => n > 0);
-  const avg = active.length ? active.reduce((a, b) => a + b, 0) / active.length : 1;
-  const rows = teams.map((t) => {
-    const n = sizes[t.id] || 0;
-    let f = 1;
-    if (n > 0 && v.normalize === 'equal') f = avg / n;
-    else if (n > 0 && v.normalize === 'sqrt') f = Math.sqrt(avg / n);
-    const mult = Number(v.teamMultipliers?.[t.id] ?? 1);
-    const each = v.studentWeight * f * mult;
-    return { team: t, size: n, factor: f, mult, each, total: each * n };
-  });
+  const teams = players.filter((p) => p.role !== 'judge');
+  const rows = teams.map((p) => ({ team: p, members: membersOf(p), weight: v.studentWeight * membersOf(p) }));
+  const maxTeam = rows.reduce((m, r) => Math.max(m, r.weight), 0);
+  const host = v.hostAlwaysHighest ? Math.max(v.hostWeight, maxTeam + 1) : v.hostWeight;
   const judges = players.filter((p) => p.role === 'judge').length;
-  const studentTotal = rows.reduce((a, r) => a + r.total, 0);
-  const grand = studentTotal + v.hostWeight + judges * v.judgeWeight;
-  return { rows, judges, studentTotal, grand, hostShare: grand ? v.hostWeight / grand : 0, judgeShare: grand ? (judges * v.judgeWeight) / grand : 0 };
+  const grand = rows.reduce((a, r) => a + r.weight, 0) + host + judges * v.judgeWeight;
+  return { rows, maxTeam, host, judges, grand };
 }
 
 export function voterWeight(voter, presenter, tw, voting) {
   const v = { ...DEFAULT_VOTING, ...voting };
-  if (voter.isHost) return v.hostWeight;
+  if (voter.isHost) return tw.host;
   if (voter.role === 'judge') return v.judgeWeight;
   if (voter.id === presenter.id) return 0;
-  const row = tw.rows.find((r) => r.team.id === voter.team);
-  let w = row ? row.each : v.studentWeight;
-  if (voter.team === presenter.team) {
-    if (v.teammateVotes === 'none') return 0;
-    if (v.teammateVotes === 'half') w *= 0.5;
-  }
-  return w;
+  return v.studentWeight * membersOf(voter);
 }
 
-// votes: {voterId: stars}; voters: map id -> voter (with isHost / role / team)
+// votes: {voterId: stars}; voters: map id -> voter (with isHost / role / members)
 export function scoreEntry(entry, votes, voters, tw, voting) {
   const v = { ...DEFAULT_VOTING, ...voting };
   let sw = 0, s = 0, count = 0;

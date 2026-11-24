@@ -49,15 +49,8 @@ const DEFAULT_QUESTIONS = (() => {
   }
 })();
 
-// Teams start with plain colour names; students (or the host) give them real names.
-const TEAM_PRESETS = [
-  { name: 'Red Team', color: '#c0573f' },
-  { name: 'Blue Team', color: '#3f73b8' },
-  { name: 'Pink Team', color: '#b8487c' },
-  { name: 'Green Team', color: '#4f9a6a' },
-  { name: 'Gold Team', color: '#c99a2e' },
-  { name: 'Purple Team', color: '#7d58b5' },
-];
+// Each joined device is a team; teams get a colour in join order.
+const TEAM_COLORS = ['#c0573f', '#3f73b8', '#4f9a6a', '#b8487c', '#c99a2e', '#7d58b5', '#2f8f8f', '#d06f2a', '#5a6fb0', '#8a5a33', '#a23b6b', '#5c8a2f'];
 
 const DEFAULT_SETTINGS = {
   styleSeconds: 300,
@@ -66,8 +59,6 @@ const DEFAULT_SETTINGS = {
   startCoins: 0,
   priceScale: 1,
   unlockAll: false,
-  teamMode: 'choose', // 'choose' | 'auto'
-  studentTeamNames: true, // students may name their own team
   voting: { ...DEFAULT_VOTING },
 };
 
@@ -90,16 +81,6 @@ const newCode = () => {
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-function makeTeams(n, old = []) {
-  return Array.from({ length: n }, (_, i) => ({
-    id: `t${i + 1}`,
-    name: old[i]?.name || TEAM_PRESETS[i].name,
-    color: TEAM_PRESETS[i].color,
-    named: !!old[i]?.named,
-    namedBy: old[i]?.namedBy || '',
-  }));
-}
-
 function createRoom(hostToken) {
   const room = {
     code: newCode(),
@@ -109,7 +90,7 @@ function createRoom(hostToken) {
     settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
     questions: DEFAULT_QUESTIONS.map((q) => ({ ...q, id: uid() })),
     questionSource: 'Default Armor of God questions',
-    teams: makeTeams(2),
+    colorIdx: 0,
     players: new Map(),
     styleEndsAt: 0,
     runway: null,
@@ -121,12 +102,13 @@ function createRoom(hostToken) {
   return room;
 }
 
-function newPlayer(room, clientId, name, body, team) {
+function newPlayer(room, clientId, name, body) {
   return {
     id: uid(),
     clientId,
     name,
-    team,
+    members: 1, // players in this team (set by the host) = how much its stars count
+    color: TEAM_COLORS[(room.colorIdx = (room.colorIdx || 0) + 1) % TEAM_COLORS.length],
     role: 'player',
     coins: room.phase === 'lobby' ? 0 : room.settings.startCoins,
     owned: new Set(),
@@ -152,15 +134,10 @@ function uniqueName(room, name, self = null) {
 
 const students = (room) => [...room.players.values()].filter((p) => p.role === 'player');
 
-function pickTeam(room) {
-  const counts = Object.fromEntries(room.teams.map((t) => [t.id, 0]));
-  for (const p of students(room)) if (counts[p.team] != null) counts[p.team]++;
-  return room.teams.slice().sort((a, b) => counts[a.id] - counts[b.id])[0].id;
-}
 
 function publicPlayer(p) {
   return {
-    id: p.id, name: p.name, team: p.team, role: p.role,
+    id: p.id, name: p.name, role: p.role, members: p.members || 1, color: p.color,
     connected: p.sockets.size > 0, ready: p.ready,
     armor: armorCount(p.outfit), body: p.outfit.body, coins: p.coins,
     hasPrayer: !!p.outfit.prayer?.trim(),
@@ -175,12 +152,10 @@ function publicState(room) {
     round: room.round,
     serverNow: Date.now(),
     styleEndsAt: room.styleEndsAt,
-    teams: room.teams,
     players: [...room.players.values()].map(publicPlayer),
     settings: {
       styleSeconds: s.styleSeconds, presentSeconds: s.presentSeconds, coinsPerCorrect: s.coinsPerCorrect,
-      startCoins: s.startCoins, priceScale: s.priceScale, unlockAll: s.unlockAll, teamMode: s.teamMode,
-      studentTeamNames: s.studentTeamNames,
+      startCoins: s.startCoins, priceScale: s.priceScale, unlockAll: s.unlockAll,
       voting: s.voting,
     },
     questionCount: room.questions.length,
@@ -311,14 +286,9 @@ function startStyling(room) {
 
 function startRunway(room) {
   const list = students(room).filter((p) => p.sockets.size > 0 || Date.now() - p.joinedAt < 3600e3);
-  // alternate teams so the runway mixes them
-  const byTeam = {};
-  for (const p of shuffle(list)) (byTeam[p.team] ||= []).push(p);
-  const order = [];
-  const queues = Object.values(byTeam);
-  while (queues.some((q) => q.length)) for (const q of shuffle(queues)) if (q.length) order.push(q.shift());
+  const order = shuffle(list);
   const entries = order.map((p) => ({
-    id: p.id, name: p.name, team: p.team,
+    id: p.id, name: p.name, color: p.color, members: p.members || 1,
     outfit: sanitizeOutfit(p.outfit, p.owned, room.settings.unlockAll),
   }));
   room.phase = 'runway';
@@ -340,20 +310,14 @@ function startRunway(room) {
 function finishRunway(room) {
   const rw = room.runway;
   const voters = {};
-  for (const p of room.players.values()) voters[p.id] = { id: p.id, team: p.team, role: p.role };
+  for (const p of room.players.values()) voters[p.id] = { id: p.id, role: p.role, members: p.members || 1 };
   voters.host = { id: 'host', isHost: true };
-  const tw = teamWeights([...room.players.values()], room.teams, room.settings.voting);
+  const tw = teamWeights([...room.players.values()], room.settings.voting);
   const scores = (rw?.entries || []).map((e) => {
     const sc = scoreEntry(e, rw.votes[e.id], voters, tw, room.settings.voting);
-    return { id: e.id, name: e.name, team: e.team, outfit: e.outfit, ...sc };
+    return { id: e.id, name: e.name, color: e.color, members: e.members, outfit: e.outfit, ...sc };
   }).sort((a, b) => b.total - a.total);
-  const teamScores = room.teams.map((t) => {
-    const mine = scores.filter((s) => s.team === t.id);
-    const sum = mine.reduce((a, s) => a + s.total, 0);
-    const val = room.settings.voting.teamScore === 'total' ? sum : (mine.length ? sum / mine.length : 0);
-    return { id: t.id, name: t.name, color: t.color, score: val, members: mine.length };
-  }).filter((t) => t.members > 0).sort((a, b) => b.score - a.score);
-  room.results = { scores, teamScores, teamScoreMode: room.settings.voting.teamScore };
+  room.results = { scores };
   room.phase = 'results';
   broadcast(room, true);
 }
@@ -427,7 +391,7 @@ io.on('connection', (socket) => {
     broadcast(room, true);
   });
 
-  socket.on('player:join', ({ code, clientId, name, body, team } = {}, cb) => {
+  socket.on('player:join', ({ code, clientId, name, body } = {}, cb) => {
     const r = rooms.get(String(code || '').trim().toUpperCase());
     if (!r) return ack(cb, { ok: false, error: 'No game with that code. Check with your teacher!' });
     if (typeof clientId !== 'string' || clientId.length < 8) return ack(cb, { ok: false, error: 'Bad client' });
@@ -443,15 +407,13 @@ io.on('connection', (socket) => {
       if (p) { p.clientId = clientId; rejoined = true; }
     }
     if (!p) {
-      if (!cleanName) return ack(cb, { ok: false, error: 'Please type your name.' });
+      if (!cleanName) return ack(cb, { ok: false, error: 'Please type your team name.' });
       if (room.players.size >= 80) return ack(cb, { ok: false, error: 'This game is full.' });
-      const t = room.settings.teamMode === 'choose' && room.teams.some((x) => x.id === team) ? team : pickTeam(room);
-      p = newPlayer(room, clientId, uniqueName(room, cleanName), body, t);
+      p = newPlayer(room, clientId, uniqueName(room, cleanName), body);
       room.players.set(p.id, p);
     } else if (cleanName && cleanName.toLowerCase() !== p.name.toLowerCase().replace(/ \d+$/, '')) {
       p.name = uniqueName(room, cleanName, p);
     }
-    if (rejoined && room.phase === 'lobby' && room.settings.teamMode === 'choose' && room.teams.some((x) => x.id === team)) p.team = team;
     if (player && player !== p) player.sockets.delete(socket.id);
     player = p;
     p.sockets.add(socket.id);
@@ -539,20 +501,6 @@ io.on('connection', (socket) => {
     ack(cb, { ok: true, correct, answer: shownAnswer, earned, ref: q.ref || '', coins: player.coins });
   });
 
-  socket.on('player:teamName', ({ name } = {}, cb) => {
-    if (!room || !player) return ack(cb, { ok: false });
-    if (!room.settings.studentTeamNames) return ack(cb, { ok: false, error: 'Your teacher is choosing the team names.' });
-    if (!['lobby', 'styling'].includes(room.phase)) return ack(cb, { ok: false, error: 'Team names are set for this round.' });
-    if (player.role !== 'player') return ack(cb, { ok: false });
-    const team = room.teams.find((t) => t.id === player.team);
-    const nm = cleanText(name, 20);
-    if (!team || nm.length < 2) return ack(cb, { ok: false, error: 'Pick a name with at least 2 letters.' });
-    if (room.teams.some((t) => t !== team && t.name.toLowerCase() === nm.toLowerCase())) return ack(cb, { ok: false, error: 'Another team already has that name.' });
-    team.name = nm; team.named = true; team.namedBy = player.name;
-    ack(cb, { ok: true });
-    broadcast(room, true);
-  });
-
   socket.on('player:ready', (ready) => {
     if (!room || !player) return;
     player.ready = !!ready;
@@ -584,56 +532,21 @@ io.on('connection', (socket) => {
     if ('startCoins' in patch) s.startCoins = Math.round(num(patch.startCoins, 0, 5000, s.startCoins));
     if ('priceScale' in patch) s.priceScale = num(patch.priceScale, 0.25, 4, s.priceScale);
     if ('unlockAll' in patch) s.unlockAll = !!patch.unlockAll;
-    if ('teamMode' in patch) s.teamMode = patch.teamMode === 'auto' ? 'auto' : 'choose';
-    if ('studentTeamNames' in patch) s.studentTeamNames = !!patch.studentTeamNames;
     if (patch.voting && typeof patch.voting === 'object') {
       const v = s.voting, pv = patch.voting;
       if ('hostWeight' in pv) v.hostWeight = num(pv.hostWeight, 0, 100, v.hostWeight);
       if ('judgeWeight' in pv) v.judgeWeight = num(pv.judgeWeight, 0, 100, v.judgeWeight);
       if ('studentWeight' in pv) v.studentWeight = num(pv.studentWeight, 0, 20, v.studentWeight);
-      if ('normalize' in pv && ['equal', 'sqrt', 'none'].includes(pv.normalize)) v.normalize = pv.normalize;
-      if ('teammateVotes' in pv && ['full', 'half', 'none'].includes(pv.teammateVotes)) v.teammateVotes = pv.teammateVotes;
-      if ('teamScore' in pv && ['average', 'total'].includes(pv.teamScore)) v.teamScore = pv.teamScore;
+      if ('hostAlwaysHighest' in pv) v.hostAlwaysHighest = !!pv.hostAlwaysHighest;
       if ('fullArmorBonus' in pv) v.fullArmorBonus = num(pv.fullArmorBonus, 0, 5, v.fullArmorBonus);
       if ('prayerBonus' in pv) v.prayerBonus = num(pv.prayerBonus, 0, 5, v.prayerBonus);
-      if (pv.teamMultipliers && typeof pv.teamMultipliers === 'object') {
-        for (const [k, val] of Object.entries(pv.teamMultipliers)) {
-          if (room.teams.some((t) => t.id === k)) v.teamMultipliers[k] = num(val, 0, 5, 1);
-        }
-      }
     }
     if (room.phase === 'styling' && 'unlockAll' in patch) for (const p of room.players.values()) sendPrivate(room, p);
     ack(cb, { ok: true });
     broadcast(room);
   });
 
-  socket.on('host:teams', ({ count, names } = {}, cb) => {
-    if (!requireHost(cb)) return;
-    const n = Math.round(num(count, 1, 6, room.teams.length));
-    const old = room.teams.map((t, i) => {
-      const nm = names?.[i] ? cleanText(names[i], 20) : '';
-      return nm && nm !== t.name ? { ...t, name: nm, named: true, namedBy: 'Teacher' } : t;
-    });
-    // names typed for newly added teams
-    for (let i = old.length; i < n; i++) {
-      const nm = names?.[i] ? cleanText(names[i], 20) : '';
-      old.push(nm && nm !== TEAM_PRESETS[i].name ? { name: nm, named: true, namedBy: 'Teacher' } : {});
-    }
-    room.teams = makeTeams(n, old);
-    for (const p of room.players.values()) if (!room.teams.some((t) => t.id === p.team)) p.team = pickTeam(room);
-    ack(cb, { ok: true });
-    broadcast(room);
-  });
-
-  socket.on('host:balanceTeams', (_x, cb) => {
-    if (!requireHost(cb)) return;
-    const list = shuffle(students(room));
-    list.forEach((p, i) => { p.team = room.teams[i % room.teams.length].id; });
-    ack(cb, { ok: true });
-    broadcast(room);
-  });
-
-  socket.on('host:player', ({ id, team, role, kick, coins, clearPrayer } = {}, cb) => {
+  socket.on('host:player', ({ id, members, name, role, kick, coins, clearPrayer } = {}, cb) => {
     if (!requireHost(cb)) return;
     const p = room.players.get(id);
     if (!p) return ack(cb, { ok: false });
@@ -641,7 +554,8 @@ io.on('connection', (socket) => {
       room.players.delete(id);
       for (const sid of p.sockets) io.to(sid).emit('kicked');
     } else {
-      if (team && room.teams.some((t) => t.id === team)) p.team = team;
+      if (members != null) p.members = Math.round(num(members, 1, 30, p.members || 1));
+      if (typeof name === 'string' && cleanText(name, 20)) p.name = uniqueName(room, cleanText(name, 20), p);
       if (role === 'player' || role === 'judge') p.role = role;
       if (coins != null) { p.coins = Math.max(0, p.coins + Math.round(num(coins, -1000, 1000, 0))); sendPrivate(room, p); }
       if (clearPrayer) { p.outfit = { ...p.outfit, prayer: '' }; sendPrivate(room, p, true); }

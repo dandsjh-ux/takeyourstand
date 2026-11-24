@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {
   fabric, leather, metal, plain, gemMat, isMetal, colorOf, METALS, shade,
   clothTexture, emblemTexture, emblemBump, wrapTexture, textLinesTexture, radialGlow,
-  weaveBump, leatherBump, noiseBump, woodBump, rope, wood, bladeTexture, shieldFaceTexture,
+  weaveBump, leatherBump, noiseBump, woodBump, rope, wood, bladeTexture, shieldFace, decalTextures, yokeTexture,
 } from './textures.js';
 import { ellipticLathe, profileR, ZS, footSection, footGeometry, SOLE_Y, FOOT_Z0, FOOT_Z1 } from './character.js';
 import { ITEM_MAP } from './catalog.js';
@@ -245,109 +245,145 @@ function emblemDisc(r, bg, emblem, fg, { metalness = 0.7, rim = null } = {}) {
   return g;
 }
 
+// Emblem embossed straight onto the chest: a patch of the torso surface carrying a transparent decal.
+function chestDecal(P, off, emblem, color, { y = 0.27, h = 0.18, x = 0, scale = 0.42, metalness = 1 } = {}) {
+  const pts = [];
+  for (let k = 0; k <= 10; k++) { const yy = y - h / 2 + (k / 10) * h; pts.push([profileR(P.torso, yy), yy]); }
+  const r = profileR(P.torso, y) + off;
+  const phiLen = h / r, phiC = Math.asin(Math.max(-0.9, Math.min(0.9, x / r)));
+  const geo = ellipticLathe(pts, { off: off + 0.004, phiStart: phiC - phiLen / 2, phiLength: phiLen, segs: 18 });
+  const { map, mask } = decalTextures(emblem, color, { scale });
+  return mesh(geo, new THREE.MeshStandardMaterial({
+    map, alphaTest: 0.45, metalness, metalnessMap: metalness ? mask : null, roughness: metalness ? 0.32 : 0.55,
+    bumpMap: mask, bumpScale: 5, polygonOffset: true, polygonOffsetFactor: -2,
+  }));
+}
+
 function buildBreastplate(L, ctx) {
   const P = ctx.P, parts = [];
   const off = ctx.hasOuter ? 0.05 : 0.038;
   const pts = bodicePoints(P, -0.025, 0.45, 0.1);
-  let mat, shoulders = false, shoulderMat;
+  const g = new THREE.Group();
+  parts.push(part('torso', g));
+  const front = (y, extra = 0) => ctx.front(y, off + extra);
+  const ring = (y, tube, mat, extra = 0.002, tilt = 0) => {
+    const r = profileR(P.torso, y);
+    return mesh(new THREE.TorusGeometry(1, tube, 10, 56), mat, V(0, y, 0), [Math.PI / 2 + tilt, 0, 0], V(r + off + extra, ZS * r + off + extra, 1));
+  };
+  const neckRing = (mat, tube = 0.016) => mesh(new THREE.TorusGeometry(1, tube, 10, 48), mat, V(0, 0.455, 0), [Math.PI / 2 - 0.08, 0, 0], V(0.112, 0.094, 1));
+  const surfZ = (x, y, extra) => { const r = profileR(P.torso, y) + off + extra; return (ZS * profileR(P.torso, y) + off + extra) * Math.sqrt(Math.max(0, 1 - (x / r) ** 2)); };
+  const straps = (mat, { w = 0.058, rivet = null } = {}) => {
+    for (const sd of [-1, 1]) {
+      const x = sd * 0.1, zf = front(0.37, 0.01);
+      g.add(ribbon([V(x, 0.34, zf), V(x, 0.44, zf * 0.8), V(x, 0.492, 0), V(x, 0.44, -zf * 0.8), V(x, 0.34, -zf)], w, 0.012, mat));
+      if (rivet) for (const zz of [1, -1]) g.add(mesh(new THREE.SphereGeometry(0.011, 12, 10), metal(rivet), V(x, 0.36, zz * (zf + 0.007)), null, V(1, 1, 0.6)));
+    }
+  };
+  let shell;
+  switch (L.style) {
+    case 'quilt': shell = clothMat({ base: L.color, quilt: L.quilt || 'grid' }); break;
+    case 'bands': case 'leather': shell = leather(L.color); break;
+    case 'scales': shell = clothMat({ base: L.color, scales: colorOf(L.scale), scaleEdge: L.edgeC }, { metal: isMetal(L.scale) || L.edgeC ? 0.45 : 0.1, rough: 0.5 }); break;
+    case 'plates': shell = new THREE.MeshStandardMaterial({ map: clothTexture({ base: L.color, plates: true }), roughness: 0.6, metalness: 0.05, bumpMap: leatherBump(), bumpScale: 1.2 }); break;
+    case 'cuirass': shell = metal(L.metal, { rough: 0.3 }); break;
+    case 'layers': shell = clothMat({ base: L.color }); break;
+    default: shell = fabric(L.color || '#ccc');
+  }
+  g.add(mesh(ellipticLathe(pts, { off }), shell));
+
+  const pipeMat = L.pipingMetal ? metal(L.pipingMetal) : L.piping ? fabric(L.piping) : null;
+  if (pipeMat) { g.add(ring(-0.022, 0.014, pipeMat)); g.add(neckRing(pipeMat)); }
+  // vest armholes: a rolled edge around each arm opening
+  const armMat = pipeMat || (L.style === 'cuirass' ? metal(L.metal, { rough: 0.28 }) : L.style === 'layers' ? fabric(shade(L.color, -0.04)) : leather(shade(L.color || '#777', -0.08)));
+  for (const sd of [-1, 1]) g.add(mesh(new THREE.TorusGeometry(0.068, 0.011, 8, 28), armMat, V(sd * (P.shoulderX - 0.012), 0.385, 0), [0, Math.PI / 2, 0], V(1.35, 1, 1)));
+
   switch (L.style) {
     case 'quilt':
-      mat = clothMat({ base: L.color, quilt: L.petal ? 'petal' : 'grid', bands: [{ v0: 0.9, v1: 1, color: L.collar ? METALS[L.collar] : shade(L.color, -0.06) }] });
+      if (L.straps) straps(fabric(L.straps), { w: 0.07 });
       break;
-    case 'vest':
-      mat = L.leather ? new THREE.MeshStandardMaterial({ color: L.color, roughness: 0.6, bumpMap: emblemBump(null), bumpScale: 0.5 }) : clothMat({ base: L.color, quilt: 'grid' });
+    case 'bands': {
+      // broad overlapping leather lames, each flaring slightly over the one below
+      const n = L.count || 4;
+      for (let k = 0; k < n; k++) {
+        const y0 = -0.025 + k * 0.105, y1 = y0 + 0.118;
+        const lame = [[profileR(P.torso, y0) + 0.014, y0], [profileR(P.torso, y0 + 0.02) + 0.009, y0 + 0.02], [profileR(P.torso, y1), y1]];
+        g.add(mesh(ellipticLathe(lame, { off: off + 0.004 + (n - k) * 0.001 }), leather(shade(L.color, k % 2 ? 0.03 : -0.02))));
+      }
+      straps(leather(shade(L.color, -0.06)), { w: 0.062 });
+      g.add(neckRing(leather(shade(L.color, -0.08)), 0.012));
       break;
-    case 'bands': mat = leather(L.color); shoulders = true; shoulderMat = leather(shade(L.color, -0.05)); break;
+    }
     case 'scales':
-      mat = clothMat({ base: L.color, scales: colorOf(L.scale), scaleEdge: L.edgeC }, { metal: isMetal(L.scale) || L.edgeC ? 0.45 : 0.1, rough: 0.5 });
-      shoulders = true; shoulderMat = fabric(L.color);
+      if (L.straps) straps(fabric(L.straps), { w: 0.058, rivet: L.rivets });
       break;
-    case 'plates':
-      mat = new THREE.MeshStandardMaterial({ map: clothTexture({ base: L.color, plates: true }), roughness: 0.6, metalness: 0.05 });
-      shoulders = true; shoulderMat = leather(shade(L.color, 0.04));
+    case 'plates': {
+      const col = mesh(new THREE.CylinderGeometry(0.098, 0.118, 0.07, 36, 1, true), leather(shade(L.color, 0.04)), V(0, 0.48, 0.0), null, V(1, 1, 0.86));
+      col.material = leather(shade(L.color, 0.04)); g.add(col);
+      g.add(ring(-0.022, 0.012, leather(shade(L.color, -0.1))));
+      for (let row = 0; row < 3; row++) {
+        const y = 0.06 + row * 0.13;
+        for (const xx of [-0.07, 0.07]) g.add(mesh(new THREE.SphereGeometry(0.011, 12, 10), metal(L.rivets || 'bronze'), V(xx, y, surfZ(xx, y, 0.006)), null, V(1, 1, 0.6)));
+      }
       break;
-    case 'cuirass':
-      mat = L.metal ? metal(L.metal, { rough: 0.32 }) : new THREE.MeshStandardMaterial({ color: L.color, roughness: 0.42, metalness: 0.35 });
-      shoulders = true; shoulderMat = L.sideMetal ? metal(L.sideMetal) : mat;
+    }
+    case 'cuirass': {
+      const m = metal(L.metal, { rough: 0.28 });
+      g.add(ring(-0.022, 0.016, m, 0.004));
+      g.add(neckRing(m, 0.018));
+      if (L.seams) {
+        for (const sd of [-1, 1]) {
+          const cp = [];
+          for (let k = 0; k <= 10; k++) { const t = k / 10, y = 0.43 - t * 0.43, x = sd * (0.095 - 0.035 * Math.sin(t * Math.PI * 0.5)); cp.push(V(x, y, surfZ(x, y, 0.002))); }
+          g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cp), 24, 0.0065, 6), m));
+        }
+      }
+      if (L.side) {
+        for (const sd of [-1, 1]) g.add(mesh(new THREE.BoxGeometry(0.02, 0.44, 0.07), fabric(L.side), V(sd * (profileR(P.torso, 0.2) + off - 0.004), 0.21, 0)));
+      }
       break;
-    default: mat = fabric(L.color || '#ccc');
-  }
-  const shell = mesh(ellipticLathe(pts, { off }), mat);
-  parts.push(part('torso', shell));
-  const deco = new THREE.Group();
-  parts.push(part('torso', deco));
-  const front = (y, extra = 0) => ctx.front(y, off + extra);
-
-  // bottom edge & collar trims
-  const edgeMat = L.edge ? metal(L.edge) : L.style === 'cuirass' && L.metal ? metal(L.metal) : null;
-  if (edgeMat || L.style === 'cuirass' || L.style === 'plates') {
-    const rB = profileR(P.torso, -0.02);
-    const ring = mesh(new THREE.TorusGeometry(1, 0.012, 6, 48), edgeMat || (L.sideMetal ? metal(L.sideMetal) : leather(shade(L.color || '#555', -0.1))), V(0, -0.02, 0), [Math.PI / 2, 0, 0], V(rB + off, ZS * rB + off, 1));
-    deco.add(ring);
-  }
-  if (L.style === 'cuirass' || L.collar || L.style === 'plates') {
-    const collarMat = L.collar ? metal(L.collar) : L.style === 'plates' ? leather(shade(L.color, -0.08)) : (L.sideMetal ? metal(L.sideMetal) : mat);
-    const c = mesh(new THREE.TorusGeometry(1, L.style === 'plates' ? 0.022 : 0.016, 8, 40), collarMat, V(0, 0.455, 0), [Math.PI / 2 - 0.08, 0, 0], V(0.112, 0.092, 1));
-    deco.add(c);
-  }
-  if (L.style === 'bands') {
-    for (let k = 0; k < (L.count || 4); k++) {
-      const y = 0.05 + k * 0.095, r = profileR(P.torso, y);
-      deco.add(mesh(new THREE.TorusGeometry(1, 0.016, 8, 48), leather(shade(L.color, 0.06)), V(0, y, 0), [Math.PI / 2, 0, 0], V(r + off + 0.004, ZS * r + off + 0.004, 1.2)));
     }
-  }
-  if (L.layers) {
-    for (const y of [0.12, 0.25]) {
-      const r = profileR(P.torso, y);
-      deco.add(mesh(new THREE.TorusGeometry(1, 0.011, 6, 48), fabric(shade(L.color, -0.07)), V(0, y, 0), [Math.PI / 2, 0, 0], V(r + off + 0.003, ZS * r + off + 0.003, 1)));
+    case 'leather':
+      if (L.straps) straps(leather(L.straps), { w: 0.06, rivet: L.rivets });
+      g.add(ring(-0.022, 0.012, leather(shade(L.color, -0.1))));
+      g.add(neckRing(leather(shade(L.color, -0.1)), 0.012));
+      break;
+    case 'layers': {
+      for (const y of [0.1, 0.22]) g.add(ring(y, 0.012, fabric(shade(L.color, -0.06)), 0.004));
+      g.add(ring(-0.022, 0.012, fabric(shade(L.color, -0.04))));
+      if (L.yoke) {
+        const yk = [[0.19, 0.38], [0.18, 0.42], [0.155, 0.46], [0.12, 0.49], [0.092, 0.505]];
+        const ym = new THREE.MeshStandardMaterial({ map: yokeTexture(), metalness: 0.85, roughness: 0.32, color: '#ffffff' });
+        g.add(mesh(ellipticLathe(yk, { off: off * 0.6, zs: 0.82 }), ym));
+        g.add(mesh(new THREE.TorusGeometry(1, 0.008, 6, 48), metal('gold'), V(0, 0.38, 0), [Math.PI / 2, 0, 0], V(0.19 + off * 0.6, 0.19 * 0.82 + off * 0.6, 1)));
+      }
+      break;
     }
-  }
-  if (L.style === 'plates') {
-    for (let i = -3; i <= 3; i++) {
-      const y = 0.44 - Math.abs(i) * 0.006;
-      deco.add(mesh(new THREE.SphereGeometry(0.009, 8, 6), metal('bronze'), V(i * 0.03, y - 0.03, front(y - 0.03, 0.006))));
-    }
-  }
-  if (L.side) {
-    for (const s of [-1, 1]) {
-      const strip = mesh(new THREE.BoxGeometry(0.02, 0.44, 0.06), fabric(L.side), V(s * (profileR(P.torso, 0.2) + off - 0.004), 0.21, 0));
-      deco.add(strip);
-    }
+    default: break;
   }
   if (L.sideMetal) {
     for (let k = 0; k < 4; k++) {
-      const y = 0.02 + k * 0.05, r = profileR(P.torso, y);
-      for (const s of [-1, 1]) {
-        const arc = mesh(new THREE.TorusGeometry(1, 0.02, 6, 16, 1.2), metal(L.sideMetal), V(0, y, 0), [Math.PI / 2, 0, s > 0 ? -0.6 : Math.PI - 0.6], V(r + off + 0.005, ZS * r + off + 0.005, 1));
-        deco.add(arc);
+      const y = 0.02 + k * 0.075, r = profileR(P.torso, y);
+      for (const sd of [-1, 1]) {
+        g.add(mesh(new THREE.TorusGeometry(1, 0.022, 8, 16, 1.0), metal(L.sideMetal), V(0, y, 0), [Math.PI / 2, 0, sd > 0 ? -0.5 : Math.PI - 0.5], V(r + off + 0.006, ZS * r + off + 0.006, 1.4)));
+        g.add(mesh(new THREE.SphereGeometry(0.008, 8, 6), metal(L.sideMetal), V(sd * (r + off + 0.02), y + 0.01, 0.02)));
       }
     }
   }
-  const emblem = L.emblem || L.medallion;
-  if (emblem) {
-    const y = L.style === 'cuirass' ? 0.28 : 0.3;
-    const metalBg = L.metal || L.sideMetal || L.collar || 'bronze';
-    const disc = emblemDisc(L.style === 'cuirass' ? 0.065 : 0.055, L.style === 'cuirass' && !L.metal ? L.color : metalBg, emblem, L.style === 'cuirass' && !L.metal ? '#e0b04f' : shade(colorOf(metalBg), -0.22), { rim: L.style === 'cuirass' && L.metal ? false : null });
-    disc.position.set(0, y, front(y, 0.002));
-    disc.rotation.x = -0.12;
-    deco.add(disc);
+  if (L.medallion) { // oval bronze medallion on the left chest
+    const d = emblemDisc(0.05, L.metal || 'bronze', L.medallion, shade(colorOf(L.metal || 'bronze'), -0.22));
+    d.scale.set(1.35, 1, 1);
+    d.position.set(0.045, 0.27, surfZ(0.045, 0.27, 0.004)); d.rotation.set(-0.12, 0.25, 0);
+    g.add(d);
+  }
+  if (L.emblem) {
+    const isCuirass = L.style === 'cuirass';
+    const col = L.emblemC || (isCuirass ? shade(colorOf(L.metal), 0.12) : '#d8b24c');
+    g.add(chestDecal(P, off, L.emblem, col, { y: L.emblem === 'sun' ? 0.32 : 0.24, h: L.emblem === 'sun' ? 0.15 : 0.3, scale: 0.42, metalness: L.emboss ? 0 : 1 }));
   }
   if (L.gem) {
     const y = 0.3;
-    deco.add(mesh(new THREE.SphereGeometry(0.026, 18, 12), gemMat(L.gem), V(0, y, front(y, 0.008)), null, V(1, 1.2, 0.55)));
-    deco.add(mesh(new THREE.TorusGeometry(0.028, 0.006, 6, 20), metal('gold'), V(0, y, front(y, 0.006)), null, V(1, 1.2, 1)));
-  }
-  if (shoulders) {
-    for (const s of [-1, 1]) {
-      const pad = mesh(new THREE.SphereGeometry(0.085, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), shoulderMat || mat, V(s * (P.shoulderX + 0.005), 0.44, 0), [0, 0, -s * 0.5], V(1, 0.75, 1.05));
-      deco.add(pad);
-      if (L.style === 'cuirass') deco.add(mesh(new THREE.TorusGeometry(0.06, 0.008, 6, 20), shoulderMat || mat, V(s * (P.shoulderX + 0.035), 0.43, 0), [0, Math.PI / 2, -s * 0.5 + 0.1]));
-    }
-  } else {
-    // soft shoulder bands
-    for (const s of [-1, 1]) {
-      deco.add(mesh(new THREE.BoxGeometry(0.075, 0.022, 0.15), mat, V(s * 0.1, 0.465, 0), [0, 0, -s * 0.32]));
-    }
+    g.add(mesh(new THREE.SphereGeometry(0.026, 18, 12), gemMat(L.gem), V(0, y, front(y, 0.008)), null, V(1, 1.2, 0.55)));
+    g.add(mesh(new THREE.TorusGeometry(0.028, 0.006, 6, 20), metal('gold'), V(0, y, front(y, 0.006)), null, V(1, 1.2, 1)));
   }
   return parts;
 }
@@ -558,21 +594,28 @@ function shieldShape(kind) {
       s.bezierCurveTo(-0.22, -0.02, -0.12, -0.18, 0, -0.29);
       break;
     }
-    case 'egg': {
+    case 'egg': { // teardrop with the point at the top
       const N = 64;
       for (let i = 0; i <= N; i++) {
         const a = (i / N) * Math.PI * 2;
-        const x = 0.2 * Math.cos(a) * (1 + 0.16 * Math.sin(a)), y = 0.27 * Math.sin(a);
+        const x = 0.2 * Math.cos(a) * (1 - 0.22 * Math.sin(a)), y = 0.27 * Math.sin(a);
         if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
       }
       break;
     }
+    case 'roundsquare': {
+      const w = 0.22, h = 0.23, r = 0.075;
+      s.moveTo(-w + r, -h); s.lineTo(w - r, -h); s.quadraticCurveTo(w, -h, w, -h + r);
+      s.lineTo(w, h - r); s.quadraticCurveTo(w, h, w - r, h); s.lineTo(-w + r, h);
+      s.quadraticCurveTo(-w, h, -w, h - r); s.lineTo(-w, -h + r); s.quadraticCurveTo(-w, -h, -w + r, -h);
+      break;
+    }
     case 'scallop': {
-      const N = 12, R = 0.22;
+      const N = 11, R = 0.235;
       for (let i = 0; i < N; i++) {
         const a0 = (i / N) * Math.PI * 2, a1 = ((i + 1) / N) * Math.PI * 2, am = (a0 + a1) / 2;
         if (i === 0) s.moveTo(Math.cos(a0) * R, Math.sin(a0) * R);
-        s.quadraticCurveTo(Math.cos(am) * R * 1.2, Math.sin(am) * R * 1.2, Math.cos(a1) * R, Math.sin(a1) * R);
+        s.quadraticCurveTo(Math.cos(am) * R * 1.1, Math.sin(am) * R * 1.1, Math.cos(a1) * R, Math.sin(a1) * R);
       }
       break;
     }
@@ -605,33 +648,48 @@ function planarUV(geo, scale = 1) {
 
 export function makeShield(L) {
   const shape = shieldShape(L.shape);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.022, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 3, curveSegments: 28 });
+  const depth = 0.024;
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 3, curveSegments: 32, steps: 1 });
   // UVs from the outline's bounding square so the face art lines up with the real shape
-  const outline = shape.getPoints(64);
+  const outline = shape.getPoints(72);
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of outline) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
   const S = Math.max(x1 - x0, y1 - y0) + 0.024, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const hw = (x1 - x0) / 2, hh = (y1 - y0) / 2;
   const pos = geo.attributes.position, uv = geo.attributes.uv;
-  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) - cx) / S + 0.5, (pos.getY(i) - cy) / S + 0.5);
+  const DOME = 0.03;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    uv.setXY(i, (x - cx) / S + 0.5, (y - cy) / S + 0.5);
+    // gently domed front, like the reference shields
+    if (z > depth * 0.5) {
+      const d = Math.min(1, ((x - cx) / hw) ** 2 + ((y - cy) / hh) ** 2);
+      pos.setZ(i, z + DOME * (1 - d));
+    }
+  }
+  geo.computeVertexNormals();
   const norm = outline.map((p) => [(p.x - cx) / S + 0.5, (p.y - cy) / S + 0.5]);
-  const grainKind = L.grain || (L.emblem === 'stitch' ? 'leather' : 'painted');
-  const scale = 0.36 * (0.56 / S);
-  const faceTex = shieldFaceTexture(`${L.shape}:${L.face}:${L.emblem}:${L.emblemC}:${grainKind}`, norm, colorOf(L.face), grainKind, L.emblem && L.emblem !== 'stitch' ? L.emblem : null, colorOf(L.emblemC || '#c9a24a'), { scale });
-  const gilded = L.emblem && !['stitch', 'fish'].includes(L.emblem);
-  const faceMat = new THREE.MeshStandardMaterial({
-    map: faceTex, roughness: grainKind === 'leather' ? 0.7 : 0.55, metalness: gilded ? 1 : 0.02,
-    metalnessMap: gilded ? emblemBump(L.emblem, scale) : null,
-    bumpMap: L.emblem && L.emblem !== 'stitch' ? emblemBump(L.emblem, scale) : leatherBump(), bumpScale: 3,
+  const scale = (L.emblemScale ?? 0.36) * (0.56 / S);
+  const { map, mask } = shieldFace(`${L.shape}:${L.face}:${L.emblem}:${L.emblemC}:${L.grain}:${(L.deco || []).join(',')}:${L.stitch}`, norm, {
+    face: colorOf(L.face), kind: L.grain || 'painted', emblem: L.emblem || null, emblemC: colorOf(L.emblemC || '#d2a84f'),
+    scale, stitch: !!L.stitch, deco: L.deco || [], band: L.band,
   });
-  const rimMat = isMetal(L.rim) ? metal(L.rim) : leather(L.rim);
+  const faceMat = new THREE.MeshStandardMaterial({
+    map, roughness: L.grain === 'leather' ? 0.72 : 0.6, metalness: 1, metalnessMap: mask,
+    bumpMap: mask, bumpScale: 5,
+  });
+  const rimMat = isMetal(L.rim) ? metal(L.rim, { rough: 0.3 }) : leather(L.rim);
   const g = new THREE.Group();
   g.add(mesh(geo, [faceMat, rimMat]));
-  const rimGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2, curveSegments: 28 });
-  const rim = mesh(rimGeo, rimMat, V(0, 0, -0.008), null, V(1.075, 1.06, 1));
-  g.add(rim);
-  if (L.boss) {
-    g.add(mesh(new THREE.SphereGeometry(0.05, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), metal(L.boss), V(0, 0, 0.032), [Math.PI / 2, 0, 0], V(1, 0.6, 1)));
-    g.add(mesh(new THREE.TorusGeometry(0.052, 0.008, 6, 24), metal(L.boss), V(0, 0, 0.032)));
+  // chunky rounded rim around the edge
+  const rimGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.024, bevelEnabled: true, bevelThickness: 0.014, bevelSize: 0.012, bevelSegments: 4, curveSegments: 32 });
+  const rx = 1 + 0.034 / hw, ry = 1 + 0.034 / hh;
+  g.add(mesh(rimGeo, rimMat, V(cx * (1 - rx), cy * (1 - ry), -0.008), null, V(rx, ry, 1)));
+  if (L.boss) { // domed boss with a flange ring
+    const zb = depth + 0.01 + DOME;
+    g.add(mesh(new THREE.SphereGeometry(0.048, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), metal(L.boss, { rough: 0.25 }), V(cx, cy, zb - 0.004), [Math.PI / 2, 0, 0], V(1, 0.75, 1)));
+    g.add(mesh(new THREE.CylinderGeometry(0.068, 0.072, 0.008, 32), metal(L.boss), V(cx, cy, zb - 0.004), [Math.PI / 2, 0, 0]));
+    g.add(mesh(new THREE.TorusGeometry(0.068, 0.007, 8, 32), metal(L.boss), V(cx, cy, zb)));
   }
   // grip strap on the back
   g.add(mesh(new THREE.BoxGeometry(0.05, 0.16, 0.02), leather('#5a3a22'), V(0, 0, -0.02)));
