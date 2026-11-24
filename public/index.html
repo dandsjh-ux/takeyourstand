@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4ecdd" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Take Your Stand</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <!-- HOME / JOIN -->
+  <section id="home" class="screen active">
+    <div class="home-inner">
+      <div class="crest">
+        <img src="/img/hero-valor.webp" alt="" class="hero hero-l" />
+        <div class="title-block">
+          <div class="eyebrow">Ephesians 6:10–18</div>
+          <h1>Take Your&nbsp;Stand</h1>
+          <p class="tag">Put on the full armor of God — then strut it down the stone road of Jerusalem!</p>
+        </div>
+        <img src="/img/hero-grace.webp" alt="" class="hero hero-r" />
+      </div>
+      <form id="join-form" class="card join" autocomplete="off">
+        <label>Game code
+          <input id="join-code" maxlength="4" inputmode="text" autocapitalize="characters" placeholder="ABCD" required />
+        </label>
+        <label>Your first name
+          <input id="join-name" maxlength="18" placeholder="Name" required />
+        </label>
+        <div class="body-pick">
+          <button type="button" class="body-opt" data-body="boy"><span>🧒🏽</span>Boy</button>
+          <button type="button" class="body-opt" data-body="girl"><span>👧🏽</span>Girl</button>
+        </div>
+        <button class="btn primary big" type="submit">Join the game</button>
+        <p id="join-error" class="error" role="alert"></p>
+      </form>
+      <button id="host-btn" class="btn ghost">I'm the teacher — host a game</button>
+    </div>
+  </section>
+
+  <!-- PLAYER: lobby + dressing room -->
+  <section id="play" class="screen">
+    <header class="topbar">
+      <div class="pill timer" id="timer"><span class="ico">⏳</span><b id="timer-val">--:--</b></div>
+      <div class="who"><span class="team-dot" id="me-team-dot"></span><span id="me-name"></span></div>
+      <button class="pill coins" id="coins-btn" title="Earn coins"><span class="ico">🪙</span><b id="coins-val">0</b><span class="plus">+</span></button>
+    </header>
+    <div id="lobby-banner" class="banner hidden">
+      <b>You're in!</b> Get your look ready while we wait for your teacher to start.
+      <div id="team-pick" class="team-pick"></div>
+    </div>
+    <div id="bubble-preview" class="speech hidden"></div>
+    <div id="zoom-hint" class="zoom-hint">Pinch to zoom · drag to turn</div>
+    <div id="drawer" class="drawer">
+      <button class="grab" id="drawer-grab" aria-label="Show more or less"><span></span></button>
+      <nav id="tabs" class="tabs"></nav>
+      <div class="panel-head">
+        <div>
+          <h2 id="panel-title"></h2>
+          <p id="panel-verse" class="verse"></p>
+        </div>
+        <button id="next-btn" class="btn small">Next ›</button>
+      </div>
+      <div id="panel" class="panel"></div>
+    </div>
+  </section>
+
+  <!-- RUNWAY / RESULTS (players and host) -->
+  <section id="show" class="screen">
+    <header class="show-top">
+      <div id="show-progress" class="pill"></div>
+      <div id="show-title" class="show-title"></div>
+    </header>
+    <div id="speech" class="speech hidden"></div>
+    <div id="namecard" class="namecard hidden"></div>
+    <div id="results" class="results hidden"></div>
+    <div id="vote" class="vote hidden"></div>
+    <div id="host-runway" class="host-runway hidden"></div>
+  </section>
+
+  <!-- HOST DASHBOARD -->
+  <section id="host" class="screen">
+    <div class="host-wrap">
+      <header class="host-head">
+        <div>
+          <div class="eyebrow">Take Your Stand · Host</div>
+          <div class="code-line">Code <b id="host-code">----</b></div>
+        </div>
+        <div id="host-phase" class="pill phase"></div>
+      </header>
+      <div id="host-main"></div>
+    </div>
+  </section>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card" id="modal-card"></div></div>
+  <div id="toast" class="toast"></div>
+  <div id="loading" class="loading"><div class="spinner"></div><p>Polishing the armor…</p></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

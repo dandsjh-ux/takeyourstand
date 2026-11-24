@@ -1,0 +1,22 @@
+{
+  "name": "take-your-stand",
+  "version": "1.0.0",
+  "description": "Take Your Stand - a multiplayer Armor of God dress-up runway game for Sunday school (three.js + Socket.io).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
+    "three": "0.170.0"
+  }
+}
