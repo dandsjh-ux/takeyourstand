@@ -3,7 +3,7 @@ import { Stage } from './stage.js';
 import { Studio } from './studio.js';
 import { Runway, timeline } from './runway.js';
 import {
-  CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, HAIR_STYLES, POSES, WALKS, POSE_MAP, WALK_MAP,
+  CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, EYE_COLORS, HAIR_STYLES, POSES, WALKS, POSE_MAP, WALK_MAP,
   MAX_POSES, PRAYER_MAX, PRAYER_STARTERS, ARMOR_SLOTS, defaultOutfit, priceFor, armorCount,
 } from './catalog.js';
 import { $, $$, h, toast, modal, closeModal, modalOpen, fmtTime, unlockAudio, sfx } from './ui.js';
@@ -21,9 +21,38 @@ const SS = {
   del(k) { try { sessionStorage.removeItem(k); } catch { /* */ } },
 };
 const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
-// one player identity per browser tab (survives refresh, separate tabs = separate players)
+// ---- seats: which player this device is in each game ---------------------------
+// The current tab keeps its identity in sessionStorage (survives refresh). Every game this device
+// joined is also remembered in localStorage, so closing the tab or browser and reopening the game
+// link drops the student straight back into their seat.
 let clientId = SS.get('tys_client');
-if (!clientId) { clientId = rid(); SS.set('tys_client', clientId); }
+const SEAT_TTL = 12 * 3600e3;
+const seats = () => {
+  const all = LS.get('tys_seats', {}) || {};
+  for (const [k, v] of Object.entries(all)) if (!v?.clientId || Date.now() - v.at > SEAT_TTL) delete all[k];
+  return all;
+};
+function saveSeat(code, seat) { const all = seats(); all[code] = { ...seat, at: Date.now() }; LS.set('tys_seats', all); }
+function dropSeat(code) { const all = seats(); delete all[code]; LS.set('tys_seats', all); }
+function idFor(code, name) {
+  const sess = SS.get('tys_session');
+  if (clientId && sess?.code === code) return clientId;
+  const seat = seats()[code];
+  if (seat && (!name || seat.name?.toLowerCase() === name.toLowerCase())) return seat.clientId;
+  return rid();
+}
+// Ask other open tabs whether they are already playing as this seat.
+const bc = 'BroadcastChannel' in window ? new BroadcastChannel('tys-seats') : null;
+if (bc) bc.onmessage = (e) => { if (e.data?.type === 'who' && S.role === 'player' && clientId === e.data.clientId) bc.postMessage({ type: 'mine', clientId }); };
+function seatInUse(id) {
+  return new Promise((resolve) => {
+    if (!bc) return resolve(false);
+    const onMsg = (e) => { if (e.data?.type === 'mine' && e.data.clientId === id) { clearTimeout(t); bc.removeEventListener('message', onMsg); resolve(true); } };
+    const t = setTimeout(() => { bc.removeEventListener('message', onMsg); resolve(false); }, 250);
+    bc.addEventListener('message', onMsg);
+    bc.postMessage({ type: 'who', clientId: id });
+  });
+}
 
 const S = {
   role: null, // 'player' | 'host'
@@ -48,7 +77,7 @@ const stage = new Stage($('#gl'));
 const studio = new Studio(stage);
 const runway = new Runway(stage);
 const host = createHost({ socket, S, stage, now, showScreen, LS, SS });
-window.__tys = { S, stage, studio, runway, updateInsets, host, setOutfit: (o) => setOutfit(o) };
+window.__tys = { S, stage, studio, runway, updateInsets, host, socket, setOutfit: (o) => setOutfit(o) };
 
 // ------------------------------------------------------------------ screens
 function showScreen(id) {
@@ -98,44 +127,120 @@ $('#join-form').addEventListener('submit', (e) => {
 });
 function showJoinError(msg) { $('#join-error').textContent = msg; }
 
-function joinGame(code, name, body, silent = false) {
-  socket.emit('player:join', { code, clientId, name, body, team: LS.get('tys_team') }, (res) => {
+function joinGame(code, name, body, opts = {}) {
+  if (typeof opts === 'boolean') opts = { silent: opts };
+  const { silent = false, reconnect = false } = opts;
+  const id = idFor(code, name);
+  socket.emit('player:join', { code, clientId: id, name, body, team: LS.get('tys_team') }, (res) => {
     if (!res?.ok) {
       if (!silent) showJoinError(res?.error || 'Could not join.');
       else {
         SS.del('tys_session');
+        if (/No game/.test(res?.error || '')) dropSeat(code);
         if (S.role === 'player') {
-          // the game is gone (ended or the server restarted)
+          // the game is gone (ended or the server lost it)
           S.role = null; S.room = null;
-          closeModal(); showScreen('home');
+          closeModal(); showScreen('home'); setConn(true);
           showJoinError('That game has ended. Ask your teacher for a new code!');
         }
+        showRejoinCards();
       }
       return;
     }
+    clientId = id; SS.set('tys_client', id);
+    const meP = res.state.players.find((p) => p.id === res.me.playerId);
+    const myName = meP?.name || name;
     S.role = 'player';
     S.code = res.code;
-    SS.set('tys_session', { code: res.code, name, body });
+    SS.set('tys_session', { code: res.code, name: myName, body });
+    saveSeat(res.code, { clientId: id, name: myName, body });
+    LS.set('tys_name', myName.replace(/ \d+$/, ''));
     history.replaceState(null, '', `/?join=${res.code}`);
-    onMe(res.me, true);
+    S.myVotes = SS.get(`tys_votes:${res.code}:${res.state.round}`, {}) || {};
+    // after a dropout keep anything changed while offline and send it up again
+    const keepLocal = reconnect && S.outfit && res.me.round === S.outfitRound;
+    onMe(res.me, !keepLocal);
+    if (keepLocal && ['lobby', 'styling'].includes(res.state.phase)) socket.emit('player:outfit', S.outfit);
     onState(res.state);
+    const cur = res.state.runway?.current;
+    if (res.state.phase === 'runway' && cur && S.myVotes[cur]) socket.emit('vote', { presenterId: cur, stars: S.myVotes[cur] });
+    setConn(true);
+    if (res.rejoined && !reconnect) toast(`Welcome back, ${myName}! You're right where you left off.`, 3000);
   });
 }
 
 $('#host-btn').addEventListener('click', () => { unlockAudio(); host.start(); });
 
-// auto-resume after refresh
+// ---- auto-resume ---------------------------------------------------------------
 const hostSession = LS.get('tys_host');
 const playerSession = SS.get('tys_session');
+const urlCode = params.get('join')?.toUpperCase().slice(0, 4);
 if (location.hash === '#host' && hostSession) host.resume(hostSession);
-else if (playerSession && (!params.get('join') || params.get('join') === playerSession.code)) joinGame(playerSession.code, playerSession.name, playerSession.body, true);
+else if (playerSession && (!urlCode || urlCode === playerSession.code)) joinGame(playerSession.code, playerSession.name, playerSession.body, { silent: true });
+else autoSeat();
 
+// Reopened the game link (QR code / bookmark) on a device that already has a seat -> rejoin at once.
+async function autoSeat() {
+  const seat = urlCode ? seats()[urlCode] : null;
+  if (seat && !(await seatInUse(seat.clientId))) {
+    S.body = seat.body || S.body;
+    joinGame(urlCode, seat.name, seat.body, { silent: true });
+    return;
+  }
+  showRejoinCards();
+}
+// Home-screen shortcuts back into a game this device was playing or hosting.
+function showRejoinCards() {
+  const box = $('#rejoin');
+  if (S.role) { box.replaceChildren(); return; }
+  const cards = [];
+  const latest = Object.entries(seats()).sort((a, b) => b[1].at - a[1].at)[0];
+  if (latest) {
+    const [code, seat] = latest;
+    cards.push(h('div.card.rejoin-card',
+      h('div', h('b', `Welcome back, ${seat.name}!`), h('div.muted', `Game ${code}: your look, coins and unlocks are saved.`)),
+      h('div.row',
+        h('button.btn.primary', { on: { click: () => { unlockAudio(); S.body = seat.body || S.body; joinGame(code, seat.name, seat.body); } } }, `Rejoin as ${seat.name}`),
+        h('button.btn.ghost', { on: { click: () => { dropSeat(code); showRejoinCards(); } } }, "I'm someone else"))));
+  }
+  const hs = LS.get('tys_host');
+  if (hs?.code) {
+    cards.push(h('div.card.rejoin-card',
+      h('div', h('b', 'Teacher'), h('div.muted', `You were hosting game ${hs.code}.`)),
+      h('div.row', h('button.btn.lapis', { on: { click: () => { unlockAudio(); host.resume(hs); } } }, `Resume hosting ${hs.code}`))));
+  }
+  box.replaceChildren(...cards);
+}
+
+// ---- connection status: rejoin automatically after any dropout -----------------
+let connTimer = 0, connSince = 0;
+function setConn(ok) {
+  const el = $('#conn');
+  clearTimeout(connTimer);
+  if (ok) { el.classList.remove('show'); connSince = 0; return; }
+  connSince ||= Date.now();
+  connTimer = setTimeout(function tick() {
+    if (!S.role) return;
+    const long = Date.now() - connSince > 15000;
+    el.textContent = long ? '📶 Still reconnecting… check your Wi-Fi. Your progress is saved.' : '📶 Reconnecting…';
+    el.classList.add('show');
+    connTimer = setTimeout(tick, 2000);
+  }, 700);
+}
 socket.on('connect', () => {
-  if (S.role === 'player' && S.code) joinGame(S.code, LS.get('tys_name'), S.body, true);
+  if (S.role === 'player' && S.code) joinGame(S.code, SS.get('tys_session')?.name || LS.get('tys_name'), S.body, { silent: true, reconnect: true });
   if (S.role === 'host') host.reconnect();
 });
-socket.on('disconnect', () => { if (S.role) toast('Reconnecting…', 4000); });
+socket.on('disconnect', () => setConn(false));
+socket.io.on('reconnect_attempt', () => setConn(false));
+// phones pause background tabs; reconnect the moment the game is visible again
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.role && !socket.connected) socket.connect();
+});
+window.addEventListener('online', () => { if (S.role && !socket.connected) socket.connect(); });
+window.addEventListener('pageshow', (e) => { if (e.persisted && S.role && !socket.connected) socket.connect(); });
 socket.on('kicked', () => {
+  dropSeat(S.code);
   SS.del('tys_session'); S.role = null;
   showScreen('home'); showJoinError('You were removed from the game by the teacher.');
 });
@@ -162,6 +267,7 @@ function onMe(m, initial = false) {
 }
 
 function onState(st) {
+  setConn(true);
   const prevPhase = S.room?.phase;
   S.room = st;
   S.offset = st.serverNow - Date.now();
@@ -186,7 +292,9 @@ function onState(st) {
     $('#lobby-banner').classList.toggle('hidden', st.phase !== 'lobby');
     renderTeamPick();
     renderTabs();
-    if (prevPhase !== st.phase) renderPanel();
+    const teamSig = JSON.stringify(st.teams.map((t) => [t.name, t.named]));
+    if (prevPhase !== st.phase || (S.cat === 'me' && teamSig !== S.teamSig)) renderPanel();
+    S.teamSig = teamSig;
   } else routeShow(st, prevPhase);
 }
 
@@ -283,6 +391,14 @@ function renderPanel() {
       h('div.chips', ...HAIR_STYLES.map((hs) => h('button.chip', { class: o.hair === hs.id ? 'on' : '', on: { click: () => setOutfit({ hair: hs.id }) } }, hs.name))));
     kids.push(h('div.section-label', 'Hair colour'),
       h('div.swatches', ...HAIR_COLORS.map((c, i) => h('button.sw', { class: o.hairColor === i ? 'on' : '', style: { background: c }, 'aria-label': `Hair colour ${i + 1}`, on: { click: () => setOutfit({ hairColor: i }) } }))));
+    kids.push(h('div.section-label', 'Eye colour'),
+      h('div.swatches', ...EYE_COLORS.map((c, i) => h('button.sw.eye', { class: (o.eyes ?? 0) === i ? 'on' : '', style: { background: `radial-gradient(circle, #111 0 28%, ${c} 30% 70%, #f7f3ee 72%)` }, 'aria-label': `Eye colour ${i + 1}`, on: { click: () => setOutfit({ eyes: i }) } }))));
+    const team = myTeam();
+    if (team) {
+      kids.push(h('div.section-label', 'Your team'),
+        h('div.row', h('span.team-chip.on', h('span.team-dot', { style: { background: team.color } }), team.name),
+          S.room?.settings.studentTeamNames && S.room.phase !== 'runway' ? h('button.team-chip.name-btn', { class: team.named ? '' : 'nudge', on: { click: openTeamName } }, team.named ? '✏️ Rename' : '✏️ Name your team!') : null));
+    }
   } else if (cat === 'tunic' || ARMOR_SLOTS.includes(cat)) {
     const list = sortItems(ITEMS.filter((i) => i.cat === cat));
     const cards = [];
@@ -485,15 +601,51 @@ function coinBurst(fromEl) {
 }
 
 // ------------------------------------------------------------------ lobby team picker
+function myTeam() {
+  const st = S.room;
+  const me = st?.players.find((p) => p.id === S.me?.playerId);
+  return me && me.role === 'player' ? st.teams.find((t) => t.id === me.team) : null;
+}
 function renderTeamPick() {
   const box = $('#team-pick');
   const st = S.room;
-  if (!st || st.phase !== 'lobby' || st.settings.teamMode !== 'choose' || st.teams.length < 2) { box.replaceChildren(); return; }
-  const me = st.players.find((p) => p.id === S.me?.playerId);
-  box.replaceChildren(h('span.muted', 'Pick your team:'), ...st.teams.map((t) => h('button.team-chip', {
-    class: me?.team === t.id ? 'on' : '',
-    on: { click: () => { LS.set('tys_team', t.id); joinGame(S.code, LS.get('tys_name'), S.body, true); } },
-  }, h('span.team-dot', { style: { background: t.color } }), t.name)));
+  if (!st || st.phase !== 'lobby') { box.replaceChildren(); return; }
+  const team = myTeam();
+  const kids = [];
+  if (st.settings.teamMode === 'choose' && st.teams.length > 1) {
+    kids.push(h('span.muted', 'Pick your team:'), ...st.teams.map((t) => h('button.team-chip', {
+      class: team?.id === t.id ? 'on' : '',
+      on: { click: () => { LS.set('tys_team', t.id); joinGame(S.code, SS.get('tys_session')?.name || LS.get('tys_name'), S.body, { silent: true }); } },
+    }, h('span.team-dot', { style: { background: t.color } }), t.name)));
+  } else if (team) {
+    kids.push(h('span.muted', 'Your team:'), h('span.team-chip.on', h('span.team-dot', { style: { background: team.color } }), team.name));
+  }
+  if (team && st.settings.studentTeamNames) {
+    kids.push(h('button.team-chip.name-btn', { class: team.named ? '' : 'nudge', on: { click: openTeamName } }, team.named ? '✏️ Rename' : '✏️ Name your team!'));
+  }
+  box.replaceChildren(...kids);
+}
+const TEAM_IDEAS = ['Shield Bearers', 'Salt & Light', 'Mighty Sparrows', 'Faith Warriors', 'Lights of the World', 'Gospel Runners', 'Truth Seekers', 'Peacemakers', 'Lion of Judah', 'Mustard Seeds'];
+function openTeamName() {
+  const team = myTeam();
+  if (!team) return;
+  const input = h('input.team-name-input', { maxLength: 20, placeholder: 'Team name', value: team.named ? team.name : '' });
+  const err = h('p.error');
+  const save = () => socket.emit('player:teamName', { name: input.value }, (r) => {
+    if (!r?.ok) { err.textContent = r?.error || 'Could not save that name.'; return; }
+    closeModal(); sfx.equip(); toast(`Your team is now “${input.value.trim()}”!`);
+  });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  modal(
+    h('h3', h('span.team-dot', { style: { background: team.color, marginRight: '8px' } }), 'Name your team'),
+    h('p.muted', team.named ? `Named by ${team.namedBy || 'a teammate'}. Anyone on the team can change it.` : 'Talk with your teammates and pick a name together!'),
+    input,
+    h('div.section-label', 'Ideas'),
+    h('div.chips', ...TEAM_IDEAS.map((n) => h('button.chip', { on: { click: () => { input.value = n; input.focus(); } } }, n))),
+    err,
+    h('div.modal-actions', h('button.btn', { on: { click: closeModal } }, 'Cancel'), h('button.btn.primary', { on: { click: save } }, 'Save name')),
+  );
+  setTimeout(() => input.focus(), 50);
 }
 
 // ------------------------------------------------------------------ speech bubble preview (dressing room)
@@ -590,6 +742,7 @@ function renderVote(entry) {
       socket.emit('vote', { presenterId: entry.id, stars: n }, (r) => {
         if (!r?.ok) return toast('Voting for this one is closed.');
         S.myVotes[entry.id] = n; sfx.star();
+        SS.set(`tys_votes:${S.code}:${S.room?.round}`, S.myVotes);
         stars.forEach((s, i) => s.classList.toggle('on', i < n));
         thanks.textContent = n >= 4 ? 'Amazing! Vote saved.' : 'Vote saved — you can change it.';
       });

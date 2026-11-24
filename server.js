@@ -49,13 +49,14 @@ const DEFAULT_QUESTIONS = (() => {
   }
 })();
 
+// Teams start with plain colour names; students (or the host) give them real names.
 const TEAM_PRESETS = [
-  { name: 'Team Faith', color: '#c0573f' },
-  { name: 'Team Hope', color: '#3f73b8' },
-  { name: 'Team Love', color: '#b8487c' },
-  { name: 'Team Peace', color: '#4f9a6a' },
-  { name: 'Team Truth', color: '#c99a2e' },
-  { name: 'Team Joy', color: '#7d58b5' },
+  { name: 'Red Team', color: '#c0573f' },
+  { name: 'Blue Team', color: '#3f73b8' },
+  { name: 'Pink Team', color: '#b8487c' },
+  { name: 'Green Team', color: '#4f9a6a' },
+  { name: 'Gold Team', color: '#c99a2e' },
+  { name: 'Purple Team', color: '#7d58b5' },
 ];
 
 const DEFAULT_SETTINGS = {
@@ -66,6 +67,7 @@ const DEFAULT_SETTINGS = {
   priceScale: 1,
   unlockAll: false,
   teamMode: 'choose', // 'choose' | 'auto'
+  studentTeamNames: true, // students may name their own team
   voting: { ...DEFAULT_VOTING },
 };
 
@@ -93,6 +95,8 @@ function makeTeams(n, old = []) {
     id: `t${i + 1}`,
     name: old[i]?.name || TEAM_PRESETS[i].name,
     color: TEAM_PRESETS[i].color,
+    named: !!old[i]?.named,
+    namedBy: old[i]?.namedBy || '',
   }));
 }
 
@@ -139,6 +143,13 @@ function newPlayer(room, clientId, name, body, team) {
   };
 }
 
+// "Ruth", "Ruth 2", ... so two students with the same name can be told apart
+function uniqueName(room, name, self = null) {
+  const taken = new Set([...room.players.values()].filter((x) => x !== self).map((x) => x.name.toLowerCase()));
+  if (!taken.has(name.toLowerCase())) return name;
+  for (let i = 2; ; i++) if (!taken.has(`${name} ${i}`.toLowerCase())) return `${name} ${i}`.slice(0, 22);
+}
+
 const students = (room) => [...room.players.values()].filter((p) => p.role === 'player');
 
 function pickTeam(room) {
@@ -169,6 +180,7 @@ function publicState(room) {
     settings: {
       styleSeconds: s.styleSeconds, presentSeconds: s.presentSeconds, coinsPerCorrect: s.coinsPerCorrect,
       startCoins: s.startCoins, priceScale: s.priceScale, unlockAll: s.unlockAll, teamMode: s.teamMode,
+      studentTeamNames: s.studentTeamNames,
       voting: s.voting,
     },
     questionCount: room.questions.length,
@@ -208,6 +220,7 @@ function hostExtra(room) {
 let broadcastTimers = new Map();
 function broadcast(room, immediate = false) {
   room.touched = Date.now();
+  markDirty(room);
   const send = () => {
     broadcastTimers.delete(room.code);
     io.to(room.code).emit('room:state', publicState(room));
@@ -217,9 +230,61 @@ function broadcast(room, immediate = false) {
   if (!broadcastTimers.has(room.code)) broadcastTimers.set(room.code, setTimeout(send, 120));
 }
 function sendPrivate(room, p, forceOutfit = false) {
+  markDirty(room);
   p.forceOutfit = forceOutfit;
   for (const sid of p.sockets) io.to(sid).emit('me', privateState(room, p));
   p.forceOutfit = false;
+}
+
+// ---------------------------------------------------------------- persistence
+// Games are snapshotted to disk so a crash or restart doesn't wipe them. On Render, attach a
+// persistent disk and set DATA_DIR to its mount path to also survive redeploys.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const SNAPSHOT = path.join(DATA_DIR, 'rooms.json');
+let dirty = false;
+function markDirty() { dirty = true; }
+function serializeRooms() {
+  return JSON.stringify({
+    savedAt: Date.now(),
+    rooms: [...rooms.values()].map((r) => ({
+      ...r,
+      hostSockets: undefined,
+      players: [...r.players.values()].map((p) => ({ ...p, sockets: undefined, owned: [...p.owned], answered: [...p.answered] })),
+    })),
+  });
+}
+function saveRooms() {
+  if (!dirty) return;
+  dirty = false;
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(`${SNAPSHOT}.tmp`, serializeRooms());
+    fs.renameSync(`${SNAPSHOT}.tmp`, SNAPSHOT);
+  } catch (e) { console.warn('Could not save games:', e.message); }
+}
+function restoreRooms() {
+  try {
+    const data = JSON.parse(fs.readFileSync(SNAPSHOT, 'utf8'));
+    const now = Date.now();
+    for (const r of data.rooms || []) {
+      if (now - r.touched > 8 * 3600e3) continue;
+      const room = {
+        ...r,
+        hostSockets: new Set(),
+        players: new Map(r.players.map((p) => [p.id, { ...p, sockets: new Set(), owned: new Set(p.owned), answered: new Set(p.answered) }])),
+      };
+      // give everyone a moment to reconnect before the clock moves on
+      if (room.phase === 'styling') room.styleEndsAt = Math.max(room.styleEndsAt, now + 30000);
+      if (room.phase === 'runway' && room.runway) { room.runway.startedAt = now + 4000; room.runway.paused = false; }
+      rooms.set(room.code, room);
+    }
+    if (rooms.size) console.log(`Restored ${rooms.size} game(s) from ${SNAPSHOT}`);
+  } catch (e) { if (e.code !== 'ENOENT') console.warn('Could not restore games:', e.message); }
+}
+restoreRooms();
+setInterval(saveRooms, 2000);
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => { dirty = true; saveRooms(); process.exit(0); });
 }
 
 // ---------------------------------------------------------------- phases
@@ -238,7 +303,7 @@ function startStyling(room) {
     p.correct = 0; p.wrong = 0;
     p.ready = false;
     const keep = p.outfit;
-    p.outfit = { ...defaultOutfit(keep.body), body: keep.body, skin: keep.skin, hair: keep.hair, hairColor: keep.hairColor };
+    p.outfit = { ...defaultOutfit(keep.body), body: keep.body, skin: keep.skin, hair: keep.hair, hairColor: keep.hairColor, eyes: keep.eyes ?? 0 };
     sendPrivate(room, p);
   }
   broadcast(room, true);
@@ -366,24 +431,35 @@ io.on('connection', (socket) => {
     const r = rooms.get(String(code || '').trim().toUpperCase());
     if (!r) return ack(cb, { ok: false, error: 'No game with that code. Check with your teacher!' });
     if (typeof clientId !== 'string' || clientId.length < 8) return ack(cb, { ok: false, error: 'Bad client' });
+    if (player && room && room !== r) player.sockets.delete(socket.id);
     room = r;
-    let p = [...room.players.values()].find((x) => x.clientId === clientId);
     const cleanName = cleanText(name, 18);
+    let p = [...room.players.values()].find((x) => x.clientId === clientId);
+    let rejoined = !!p;
+    if (!p && cleanName) {
+      // Same name, but a different device or a cleared browser: take back that student's seat
+      // (only when nobody is currently connected to it, so two Ruths can't steal from each other).
+      p = [...room.players.values()].find((x) => x.sockets.size === 0 && x.name.toLowerCase() === cleanName.toLowerCase());
+      if (p) { p.clientId = clientId; rejoined = true; }
+    }
     if (!p) {
       if (!cleanName) return ack(cb, { ok: false, error: 'Please type your name.' });
       if (room.players.size >= 80) return ack(cb, { ok: false, error: 'This game is full.' });
       const t = room.settings.teamMode === 'choose' && room.teams.some((x) => x.id === team) ? team : pickTeam(room);
-      p = newPlayer(room, clientId, cleanName, body, t);
+      p = newPlayer(room, clientId, uniqueName(room, cleanName), body, t);
       room.players.set(p.id, p);
-    } else if (cleanName) {
-      p.name = cleanName;
-      if (room.phase === 'lobby' && room.settings.teamMode === 'choose' && room.teams.some((x) => x.id === team)) p.team = team;
+    } else if (cleanName && cleanName.toLowerCase() !== p.name.toLowerCase().replace(/ \d+$/, '')) {
+      p.name = uniqueName(room, cleanName, p);
     }
+    if (rejoined && room.phase === 'lobby' && room.settings.teamMode === 'choose' && room.teams.some((x) => x.id === team)) p.team = team;
+    if (player && player !== p) player.sockets.delete(socket.id);
     player = p;
     p.sockets.add(socket.id);
+    p.lastSeen = Date.now();
     socket.join(room.code);
-    ack(cb, { ok: true, code: room.code, state: publicState(room), me: privateState(room, p) });
+    ack(cb, { ok: true, code: room.code, rejoined, state: publicState(room), me: privateState(room, p) });
     if (room.runway) socket.emit('runway:entries', { entries: room.runway.entries, round: room.round });
+    markDirty(room);
     broadcast(room);
   });
 
@@ -393,7 +469,7 @@ io.on('connection', (socket) => {
     const before = player.outfit;
     let next = sanitizeOutfit(outfit, player.owned, room.settings.unlockAll);
     // in the lobby only the "Me" features may change
-    if (room.phase === 'lobby') next = { ...before, body: next.body, skin: next.skin, hair: next.hair, hairColor: next.hairColor };
+    if (room.phase === 'lobby') next = { ...before, body: next.body, skin: next.skin, hair: next.hair, hairColor: next.hairColor, eyes: next.eyes };
     if (room.phase === 'runway' || room.phase === 'results') return ack(cb, { ok: false });
     if (room.phase === 'lobby' && before.body !== next.body) {
       // keep tunic matching default style when switching body in lobby
@@ -463,6 +539,20 @@ io.on('connection', (socket) => {
     ack(cb, { ok: true, correct, answer: shownAnswer, earned, ref: q.ref || '', coins: player.coins });
   });
 
+  socket.on('player:teamName', ({ name } = {}, cb) => {
+    if (!room || !player) return ack(cb, { ok: false });
+    if (!room.settings.studentTeamNames) return ack(cb, { ok: false, error: 'Your teacher is choosing the team names.' });
+    if (!['lobby', 'styling'].includes(room.phase)) return ack(cb, { ok: false, error: 'Team names are set for this round.' });
+    if (player.role !== 'player') return ack(cb, { ok: false });
+    const team = room.teams.find((t) => t.id === player.team);
+    const nm = cleanText(name, 20);
+    if (!team || nm.length < 2) return ack(cb, { ok: false, error: 'Pick a name with at least 2 letters.' });
+    if (room.teams.some((t) => t !== team && t.name.toLowerCase() === nm.toLowerCase())) return ack(cb, { ok: false, error: 'Another team already has that name.' });
+    team.name = nm; team.named = true; team.namedBy = player.name;
+    ack(cb, { ok: true });
+    broadcast(room, true);
+  });
+
   socket.on('player:ready', (ready) => {
     if (!room || !player) return;
     player.ready = !!ready;
@@ -479,6 +569,7 @@ io.on('connection', (socket) => {
     const s = Math.round(num(stars, 1, 5, 0));
     if (!s) return ack(cb, { ok: false });
     (rw.votes[presenterId] ||= {})[voterId] = s;
+    markDirty(room);
     ack(cb, { ok: true });
     for (const sid of room.hostSockets) io.to(sid).emit('host:extra', hostExtra(room));
   });
@@ -494,6 +585,7 @@ io.on('connection', (socket) => {
     if ('priceScale' in patch) s.priceScale = num(patch.priceScale, 0.25, 4, s.priceScale);
     if ('unlockAll' in patch) s.unlockAll = !!patch.unlockAll;
     if ('teamMode' in patch) s.teamMode = patch.teamMode === 'auto' ? 'auto' : 'choose';
+    if ('studentTeamNames' in patch) s.studentTeamNames = !!patch.studentTeamNames;
     if (patch.voting && typeof patch.voting === 'object') {
       const v = s.voting, pv = patch.voting;
       if ('hostWeight' in pv) v.hostWeight = num(pv.hostWeight, 0, 100, v.hostWeight);
@@ -518,7 +610,15 @@ io.on('connection', (socket) => {
   socket.on('host:teams', ({ count, names } = {}, cb) => {
     if (!requireHost(cb)) return;
     const n = Math.round(num(count, 1, 6, room.teams.length));
-    const old = room.teams.map((t, i) => ({ ...t, name: names?.[i] ? cleanText(names[i], 20) : t.name }));
+    const old = room.teams.map((t, i) => {
+      const nm = names?.[i] ? cleanText(names[i], 20) : '';
+      return nm && nm !== t.name ? { ...t, name: nm, named: true, namedBy: 'Teacher' } : t;
+    });
+    // names typed for newly added teams
+    for (let i = old.length; i < n; i++) {
+      const nm = names?.[i] ? cleanText(names[i], 20) : '';
+      old.push(nm && nm !== TEAM_PRESETS[i].name ? { name: nm, named: true, namedBy: 'Teacher' } : {});
+    }
     room.teams = makeTeams(n, old);
     for (const p of room.players.values()) if (!room.teams.some((t) => t.id === p.team)) p.team = pickTeam(room);
     ack(cb, { ok: true });

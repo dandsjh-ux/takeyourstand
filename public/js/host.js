@@ -23,7 +23,7 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
   }
   function resume(sess) {
     socket.emit('host:resume', { code: sess.code, hostToken: sess.token }, (res) => {
-      if (!res?.ok) { LS.del('tys_host'); location.hash = ''; showScreen('home'); return; }
+      if (!res?.ok) { LS.del('tys_host'); location.hash = ''; showScreen('home'); toast('That game has ended. Host a new one!', 4000); return; }
       begin(res.code, sess.token);
     });
   }
@@ -167,6 +167,7 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
       slider('Shop prices', s.priceScale, { min: 0.25, max: 2, step: 0.25, fmt: (v) => `×${v}`, onInput: (v) => send({ priceScale: v }), hint: 'Base prices: armor 15–35, poses 15–30, bonus wardrobe 30–80 coins.' }),
       toggle('Unlock everything', s.unlockAll, (v) => send({ unlockAll: v }), 'Free-play mode: all costumes and poses open, no coins needed.'),
       select('Teams', s.teamMode, [['choose', 'Students choose their team'], ['auto', 'Auto-assign (balanced)']], (v) => send({ teamMode: v })),
+      toggle('Students name their teams', s.studentTeamNames !== false, (v) => send({ studentTeamNames: v }), 'Any team member can name or rename their team in the lobby or while styling. You can still override names in the Teams tab.'),
     ];
   }
 
@@ -243,11 +244,13 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     const fill = (n) => {
       const cur = [...names.querySelectorAll('input')].map((i) => i.value);
       names.replaceChildren(...Array.from({ length: n }, (_, i) => h('input', { value: cur[i] ?? st.teams[i]?.name ?? '', placeholder: `Team ${i + 1}`, maxLength: 20 })));
-      names.querySelectorAll('input').forEach((inp, i) => { inp.value = cur[i] ?? st.teams[i]?.name ?? ['Team Faith', 'Team Hope', 'Team Love', 'Team Peace', 'Team Truth', 'Team Joy'][i]; });
+      names.querySelectorAll('input').forEach((inp, i) => { inp.value = cur[i] ?? st.teams[i]?.name ?? ['Red Team', 'Blue Team', 'Pink Team', 'Green Team', 'Gold Team', 'Purple Team'][i]; inp.dataset.team = i; inp.addEventListener('input', () => { inp.dataset.dirty = '1'; }); });
     };
     fill(st.teams.length);
     count.addEventListener('change', () => fill(Number(count.value)));
-    return [h('h3', 'Teams'), h('div.field', h('span.lbl', 'Number of teams'), count), names,
+    return [h('h3', 'Teams'),
+      h('p.muted', st.settings.studentTeamNames !== false ? 'Students can name their own teams (change this in the Game tab). Names they choose appear here as they type them in.' : 'You are choosing the team names.'),
+      h('div.field', h('span.lbl', 'Number of teams'), count), names, h('div#h-namedby.muted'),
       h('div.modal-actions', h('button.btn.primary', { on: { click: () => socket.emit('host:teams', { count: Number(count.value), names: [...names.querySelectorAll('input')].map((i) => i.value) }, () => { toast('Teams saved'); renderedTab = ''; }) } }, 'Save teams'))];
   }
 
@@ -302,6 +305,13 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     }
     const qs = $('#h-qsrc');
     if (qs) qs.textContent = `${extra.questions.length} questions · ${extra.questionSource || ''}`;
+    // team names typed by students show up live (unless the teacher is editing that box)
+    for (const inp of main.querySelectorAll('input[data-team]')) {
+      const t = st.teams[Number(inp.dataset.team)];
+      if (t && !inp.dataset.dirty && document.activeElement !== inp && inp.value !== t.name) inp.value = t.name;
+    }
+    const nb = $('#h-namedby');
+    if (nb) nb.textContent = st.teams.map((t) => `${t.name}: ${t.named ? `named by ${t.namedBy || 'a student'}` : 'not named yet'}`).join(' · ');
     const tm = $('#h-teammult');
     if (tm && tm.childElementCount !== st.teams.length) {
       tm.replaceChildren(...st.teams.map((t) => slider(`${t.name} multiplier`, st.settings.voting.teamMultipliers?.[t.id] ?? 1, {

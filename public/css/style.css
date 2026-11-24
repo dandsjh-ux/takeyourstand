@@ -100,6 +100,10 @@ h1 { font-family: 'Cinzel', serif; font-weight: 800; font-size: clamp(2rem, 9vw,
 .team-pick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .team-chip { padding: 6px 12px; border-radius: 999px; border: 2px solid var(--line); background: #fff; font-weight: 800; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; }
 .team-chip.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.team-chip.name-btn { background: #fbefdc; border-color: var(--bronze); }
+.team-chip.nudge { background: var(--gold); border-color: var(--bronze-d); animation: pulse 1.4s infinite; }
+.team-name-input { width: 100%; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); font-size: 1.2rem; font-weight: 900; background: #fff; user-select: text; -webkit-user-select: text; margin-top: 6px; }
+.sw.eye { width: 40px; height: 40px; }
 
 .zoom-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--drawer-h) + 10px); background: rgba(58, 36, 24, 0.62); color: #fff; font-weight: 700; font-size: 0.78rem; padding: 5px 12px; border-radius: 999px; pointer-events: none; transition: opacity 0.6s; z-index: 3; }
 .zoom-hint.fade { opacity: 0; }
@@ -318,3 +322,10 @@ h1 { font-family: 'Cinzel', serif; font-weight: 800; font-size: clamp(2rem, 9vw,
   .zoom-hint { bottom: 16px; left: calc((100vw - 420px) / 2); }
   .banner { right: 432px; }
 }
+
+/* rejoin shortcuts + connection status */
+.rejoin { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.rejoin:empty { display: none; }
+.rejoin-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; border-color: var(--bronze); background: #fdf4e6; }
+.conn { position: fixed; left: 50%; top: calc(10px + var(--safe-t)); transform: translate(-50%, -160%); z-index: 90; background: #3a2418; color: #fff; padding: 8px 16px; border-radius: 999px; font-weight: 800; font-size: 0.88rem; box-shadow: var(--shadow); transition: transform 0.3s; max-width: 92vw; text-align: center; pointer-events: none; }
+.conn.show { transform: translate(-50%, 0); }

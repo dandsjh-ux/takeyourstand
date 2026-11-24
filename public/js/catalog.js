@@ -30,6 +30,7 @@ export const CATEGORIES = [
 
 export const SKIN_TONES = ['#f4d6bd', '#eac19e', '#dcaa80', '#c88f62', '#ad7349', '#8d5a37', '#6e4128', '#4f2d1b'];
 export const HAIR_COLORS = ['#17110e', '#38231a', '#5a3521', '#7d3b1f', '#9f6b36', '#c9a061', '#8e8a86'];
+export const EYE_COLORS = ['#5a3420', '#7a4a26', '#8a6a32', '#4f7a4a', '#4a77a8', '#6f7f8f'];
 export const HAIR_STYLES = [
   { id: 'crop', name: 'Cropped Curls' },
   { id: 'coils', name: 'Short Coils' },
@@ -117,14 +118,14 @@ export const ITEMS = [
   I('shoes-x1', 'shoes', 'Sunrise Messenger Sandals', 35, { color: '#e08a3c', color2: '#f3c14d', bands: [0.35, 0.6, 0.8], ankle: true, high: 1, accent: 'gold' }, { noIcon: true }),
 
   // SHIELD OF FAITH
-  I('shield-v1', 'shield', 'Rawhide Round Shield', 0, { shape: 'circle', face: '#dcc8a0', rim: '#a77a4a', emblem: 'stitch' }),
-  I('shield-v2', 'shield', 'Cedar Olive Shield', 0, { shape: 'oval', face: '#8f9c6c', rim: '#bf955f', emblem: 'olive', emblemC: '#c9a24a' }),
+  I('shield-v1', 'shield', 'Rawhide Round Shield', 0, { shape: 'circle', face: '#dcc8a0', rim: '#a77a4a', emblem: 'stitch', grain: 'leather' }),
+  I('shield-v2', 'shield', 'Cedar Olive Shield', 0, { shape: 'oval', face: '#8f9c6c', rim: '#bf955f', emblem: 'olive', emblemC: '#c9a24a', grain: 'wood' }),
   I('shield-g1', 'shield', 'Rose Scallop Shield', 0, { shape: 'scallop', face: '#cf9494', rim: '#b98a6a', emblem: 'rosette', emblemC: '#c18a4a' }),
   I('shield-v3', 'shield', 'Rust Tower Shield', 15, { shape: 'rect', face: '#9b3a26', rim: 'bronze', boss: 'gold' }),
   I('shield-g2', 'shield', 'Olive Laurel Shield', 15, { shape: 'almond', face: '#6f7a45', rim: 'bronze', emblem: 'laurel', emblemC: '#d2a84f' }),
   I('shield-v4', 'shield', 'Indigo Sunburst Shield', 20, { shape: 'circle', face: '#2f3d6d', rim: 'bronze', emblem: 'sunburst', emblemC: '#c89150', boss: 'bronze' }),
   I('shield-g3', 'shield', 'Lapis Star Shield', 20, { shape: 'octagon', face: '#2f4a8a', rim: 'brass', emblem: 'petal8', emblemC: '#d8b24c' }),
-  I('shield-v5', 'shield', 'Chestnut Teardrop', 25, { shape: 'teardrop', face: '#6b3e22', rim: 'bronze', boss: 'bronze' }),
+  I('shield-v5', 'shield', 'Chestnut Teardrop', 25, { shape: 'teardrop', face: '#6b3e22', rim: 'bronze', boss: 'bronze', grain: 'leather' }),
   I('shield-g4', 'shield', 'Mulberry Lily Shield', 25, { shape: 'oval', face: '#7f3f5e', rim: '#c9a77a', emblem: 'lily', emblemC: '#e2c48e' }),
   I('shield-v6', 'shield', 'Radiant Sun Shield', 30, { shape: 'squircle', face: '#efe0c0', rim: '#c9954f', emblem: 'sun', emblemC: '#b9813f' }),
   I('shield-g5', 'shield', 'Pomegranate Shield', 30, { shape: 'rect', face: '#9b2c2c', rim: 'copper', emblem: 'pomegranate', emblemC: '#e0b04f' }),
@@ -247,6 +248,7 @@ export function defaultOutfit(body = 'boy') {
     skin: 3,
     hair: girl ? 'lowbun' : 'crop',
     hairColor: 1,
+    eyes: 0,
     tunic: girl ? 'tunic-g1' : 'tunic-v1',
     belt: null, breastplate: null, shoes: null, shield: null, helmet: null, sword: null,
     outer: null, head: null, acc: [],
@@ -270,6 +272,7 @@ export function sanitizeOutfit(o, owned, unlockAll) {
   out.skin = clampInt(o.skin, 0, SKIN_TONES.length - 1, d.skin);
   out.hairColor = clampInt(o.hairColor, 0, HAIR_COLORS.length - 1, d.hairColor);
   out.hair = HAIR_STYLES.some((h) => h.id === o.hair) ? o.hair : d.hair;
+  out.eyes = clampInt(o.eyes, 0, EYE_COLORS.length - 1, 0);
   const okItem = (id, cat) => {
     const it = ITEM_MAP[id];
     if (!it || it.cat !== cat) return false;

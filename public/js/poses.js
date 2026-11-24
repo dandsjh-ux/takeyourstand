@@ -187,8 +187,14 @@ export class Animator {
     if (this.mode === 'pose' && this.opts.id === 'spin') this.cur.rootRotY = tg.rootRotY;
     else this.cur.rootRotY += ((tg.rootRotY || 0) - this.cur.rootRotY) * k;
     this.c.applyPose(this.cur);
-    // little extras: dove bob, lamp flicker
+    // blinking: a quick close every few seconds
+    this.blinkIn = (this.blinkIn ?? 2 + Math.random() * 2) - dt;
+    if (this.blinkIn < 0) { this.blinkT = 0; this.blinkIn = 2.2 + Math.random() * 3.5; }
+    let blink = 0;
+    if (this.blinkT != null) { this.blinkT += dt; blink = this.blinkT < 0.16 ? Math.sin((this.blinkT / 0.16) * Math.PI) : 0; if (this.blinkT >= 0.16) this.blinkT = null; }
+    // little extras: dove bob, lamp flicker, eyelids
     this.c.root.traverse((o) => {
+      if (o.userData.lid) o.rotation.x = o.userData.lidBase + blink * 1.45;
       if (o.userData.bob) o.position.y = 0.52 + Math.abs(Math.sin(this.time * 3)) * 0.012;
       if (o.userData.flame) o.scale.y = 1.6 + Math.sin(this.time * 23) * 0.25 + Math.sin(this.time * 9) * 0.2;
     });

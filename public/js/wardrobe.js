@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import {
   fabric, leather, metal, plain, gemMat, isMetal, colorOf, METALS, shade,
   clothTexture, emblemTexture, emblemBump, wrapTexture, textLinesTexture, radialGlow,
+  weaveBump, leatherBump, noiseBump, woodBump, rope, wood, bladeTexture, shieldFaceTexture,
 } from './textures.js';
-import { ellipticLathe, profileR, ZS } from './character.js';
+import { ellipticLathe, profileR, ZS, footSection, footGeometry, SOLE_Y, FOOT_Z0, FOOT_Z1 } from './character.js';
 import { ITEM_MAP } from './catalog.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -29,7 +30,7 @@ function mesh(geo, mat, pos, rot, scl) {
 }
 const grp = (...kids) => { const g = new THREE.Group(); for (const k of kids) g.add(k); return g; };
 const part = (joint, obj) => ({ joint, obj });
-const clothMat = (spec, opts = {}) => new THREE.MeshStandardMaterial({ map: clothTexture(spec), roughness: opts.rough ?? 0.9, metalness: opts.metal ?? 0, side: opts.side ?? THREE.FrontSide });
+const clothMat = (spec, opts = {}) => new THREE.MeshStandardMaterial({ map: clothTexture(spec), roughness: opts.rough ?? 0.88, metalness: opts.metal ?? 0, side: opts.side ?? THREE.FrontSide, bumpMap: weaveBump(), bumpScale: 1.3 });
 const matOf = (v, kind) => (isMetal(v) ? metal(v) : kind === 'leather' ? leather(v) : fabric(v));
 
 // ---------------------------------------------------------------- clothing geometry helpers
@@ -428,55 +429,101 @@ function buildBelt(L, ctx) {
 }
 
 // ---------------------------------------------------------------- SHOES
+// Straps are flat ribbons swept along curves that hug the foot's real cross-section,
+// so they always sit on top of the foot instead of sinking into it.
+function ribbon(points, width, thick, mat, closed = false) {
+  const curve = new THREE.CatmullRomCurve3(points, closed);
+  const sh = new THREE.Shape();
+  sh.moveTo(-thick / 2, -width / 2); sh.lineTo(thick / 2, -width / 2); sh.lineTo(thick / 2, width / 2); sh.lineTo(-thick / 2, width / 2); sh.closePath();
+  const geo = new THREE.ExtrudeGeometry(sh, { steps: Math.max(12, points.length * 3), bevelEnabled: false, extrudePath: curve });
+  return mesh(geo, mat);
+}
+function cord(points, radius, mat, closed = false) {
+  return mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, closed), Math.max(16, points.length * 3), radius, 8, closed), mat);
+}
+// arch over the foot at depth z (in the plane z, optionally swung by yaw around the vertical axis)
+function archPoints(z, { lift = 0.004, widen = 1.12, yaw = 0 } = {}) {
+  const { halfW, top } = footSection(z);
+  const W = halfW * widen + 0.004, H = top - SOLE_Y + lift;
+  const pts = [];
+  for (let k = 0; k <= 14; k++) {
+    const a = (k / 14) * Math.PI;
+    const x = Math.cos(a) * W, y = SOLE_Y + Math.sin(a) * H;
+    pts.push(new THREE.Vector3(x * Math.cos(yaw), y, z - x * Math.sin(yaw)));
+  }
+  return pts;
+}
+function ringPoints(y, rx, rz, cz = 0, from = 0, to = Math.PI * 2, n = 24) {
+  const pts = [];
+  const full = Math.abs(to - from - Math.PI * 2) < 1e-6;
+  for (let k = 0; k < (full ? n : n + 1); k++) { const a = from + (k / n) * (to - from); pts.push(new THREE.Vector3(Math.sin(a) * rx, y, cz + Math.cos(a) * rz)); }
+  return pts;
+}
+
 function buildShoes(L, ctx) {
   const parts = [];
-  const strapMat = L.rope ? new THREE.MeshStandardMaterial({ map: wrapTexture(L.color), roughness: 0.8 }) : leather(L.color);
+  const P = ctx.P;
+  const strapMat = L.rope ? rope(L.color) : leather(L.color);
   const strap2 = L.color2 ? leather(L.color2) : strapMat;
-  const soleMat = leather(L.sole || '#5c3d24');
+  const soleMat = leather(L.sole || '#6b4a2e');
+  const tieMat = L.tie ? fabric(L.tie) : strapMat;
+  // sole outline follows the foot plan with a small margin
   const soleShape = new THREE.Shape();
-  { // footprint
-    const w = 0.052, z0 = -0.06, z1 = 0.16;
-    soleShape.moveTo(-w * 0.85, z0 + 0.03);
-    soleShape.quadraticCurveTo(-w * 0.85, z0, 0, z0);
-    soleShape.quadraticCurveTo(w * 0.85, z0, w * 0.85, z0 + 0.03);
-    soleShape.lineTo(w, z1 - 0.06);
-    soleShape.quadraticCurveTo(w, z1, 0, z1);
-    soleShape.quadraticCurveTo(-w, z1, -w, z1 - 0.06);
-    soleShape.closePath();
+  const N = 24, side = [];
+  for (let k = 0; k <= N; k++) {
+    const z = FOOT_Z0 - 0.006 + (k / N) * (FOOT_Z1 - FOOT_Z0 + 0.012);
+    side.push([Math.max(0.012, footSection(Math.min(FOOT_Z1 - 0.004, Math.max(FOOT_Z0 + 0.004, z))).halfW + 0.008), z]);
   }
-  const soleGeo = new THREE.ExtrudeGeometry(soleShape, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2 });
+  side.forEach(([x, z], i) => (i ? soleShape.lineTo(x, z) : soleShape.moveTo(x, z)));
+  for (let k = side.length - 1; k >= 0; k--) soleShape.lineTo(-side[k][0], side[k][1]);
+  soleShape.closePath();
+  const soleGeo = new THREE.ExtrudeGeometry(soleShape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2, curveSegments: 4 });
+  const ankleR = P.shinR + 0.008;
+  const strapW = L.wide ? 0.02 : 0.011;
   for (const s of ['L', 'R']) {
     const sx = s === 'L' ? 1 : -1;
     const g = new THREE.Group();
-    const sole = mesh(soleGeo, soleMat, V(0, -0.072, 0), [Math.PI / 2, 0, 0]);
-    g.add(sole);
+    g.add(mesh(soleGeo, soleMat, V(0, SOLE_Y - 0.0005, 0), [Math.PI / 2, 0, 0]));
     // straps over the forefoot
-    for (const [i, t] of (L.bands || []).entries()) {
-      const z = -0.05 + t * 0.2;
-      const w = L.wide ? 0.022 : 0.012;
-      const arc = mesh(new THREE.TorusGeometry(0.05, w * 0.55, 6, 18, Math.PI), i % 2 ? strap2 : strapMat, V(0, -0.068, z), [0, 0, 0], V(1.05, 0.62 + (1 - t) * 0.3, L.wide ? 2.2 : 1));
-      g.add(arc);
-      if (L.cross && i === 0) {
-        for (const a of [-0.55, 0.55]) g.add(mesh(new THREE.TorusGeometry(0.05, 0.007, 6, 18, Math.PI), strapMat, V(0, -0.068, z - 0.04), [0, a, 0], V(1.05, 0.75, 1)));
+    (L.bands || []).forEach((t, i) => {
+      const z = FOOT_Z0 + 0.02 + t * (FOOT_Z1 - FOOT_Z0 - 0.045);
+      const m = i % 2 ? strap2 : strapMat;
+      g.add(L.rope ? cord(archPoints(z), 0.0065, m) : ribbon(archPoints(z), strapW, 0.004, m));
+    });
+    if (L.cross) {
+      const zc = FOOT_Z0 + 0.075;
+      for (const yaw of [-0.55, 0.55]) {
+        const pts = archPoints(zc, { yaw, widen: 1.18, lift: 0.006 });
+        g.add(L.rope ? cord(pts, 0.0055, strapMat) : ribbon(pts, 0.009, 0.004, strapMat));
       }
     }
     if (L.ankle || L.high) {
-      g.add(mesh(new THREE.TorusGeometry(0.058, 0.0075, 6, 22), strapMat, V(0, -0.012, 0.0), [Math.PI / 2, 0, 0], V(1, 1.05, 1)));
-      // side straps joining sole to ankle
-      for (const side of [-1, 1]) g.add(mesh(new THREE.BoxGeometry(0.008, 0.06, 0.018), strapMat, V(side * 0.05, -0.045, -0.005)));
+      g.add(ribbon(ringPoints(0.004, ankleR, ankleR), 0.011, 0.004, strapMat, true));
+      // heel counter straps rising from the sole to the ankle band
+      for (const sd of [-1, 1]) {
+        const z = -0.012, { halfW } = footSection(z);
+        g.add(ribbon([V(sd * (halfW + 0.003), SOLE_Y, z), V(sd * (halfW * 0.9 + 0.003), -0.03, z - 0.004), V(sd * ankleR * 0.98, 0.0, -0.004)], 0.01, 0.004, strapMat));
+      }
     }
     for (let k = 1; k <= (L.high || 0); k++) {
-      g.add(mesh(new THREE.TorusGeometry(0.056 + k * 0.002, 0.009, 6, 22), L.tie ? fabric(L.tie) : strapMat, V(0, -0.012 + k * 0.045, 0), [Math.PI / 2 + (k % 2 ? 0.12 : -0.12), 0, 0]));
+      const y = 0.004 + k * 0.038;
+      g.add(ribbon(ringPoints(y, ankleR - 0.001, ankleR - 0.001).map((p, i) => p.add(V(0, Math.sin(i / 3) * 0.004, 0))), 0.01, 0.004, tieMat, true));
     }
     if (L.wrap) {
-      g.add(mesh(new THREE.SphereGeometry(0.05, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), fabric(L.color), V(0, -0.045, 0.045), null, V(1.12, 0.82, 2.15)));
-      g.add(mesh(new THREE.TorusGeometry(0.055, 0.008, 6, 22), fabric(L.tie || L.color), V(0, -0.005, 0), [Math.PI / 2, 0, 0]));
+      const cover = mesh(footGeometry(), fabric(L.color), null, null, V(1.12, 1.18, 1.04));
+      cover.position.y = -SOLE_Y * 0.15;
+      g.add(cover);
+      for (const z of [0.0, 0.05, 0.1]) g.add(ribbon(archPoints(z, { widen: 1.24, lift: 0.01 }), 0.006, 0.003, tieMat));
+      g.add(ribbon(ringPoints(0.008, ankleR, ankleR), 0.012, 0.004, tieMat, true));
     }
-    if (L.heel) g.add(mesh(new THREE.TorusGeometry(0.048, 0.008, 6, 18, Math.PI), strapMat, V(0, -0.045, -0.01), [Math.PI / 2, 0, Math.PI], V(1, 1.1, 1)));
-    if (L.tie && !L.wrap && !L.high) g.add(mesh(new THREE.TorusGeometry(0.056, 0.006, 6, 22), fabric(L.tie), V(0, 0.01, 0), [Math.PI / 2, 0, 0]));
-    if (L.accent) g.add(mesh(new THREE.SphereGeometry(0.013, 10, 8), metal(L.accent), V(sx * 0.057, -0.012, 0.0), null, V(0.5, 1, 1)));
-    if (L.gem) g.add(mesh(new THREE.SphereGeometry(0.011, 10, 8), gemMat(L.gem), V(0, -0.012, 0.056)));
-    if (L.bow) for (const b of [-1, 1]) g.add(mesh(new THREE.TorusGeometry(0.014, 0.005, 6, 12), strapMat, V(b * 0.016, -0.005, 0.054), [0, 0, b * 0.5], V(1.2, 0.8, 1)));
+    if (L.heel) {
+      const z = -0.02, { halfW } = footSection(z);
+      g.add(ribbon(ringPoints(-0.042, halfW + 0.008, 0.07, 0, Math.PI / 2, Math.PI * 1.5, 16), 0.012, 0.004, strapMat));
+    }
+    if (L.tie && !L.wrap && !L.high) g.add(cord(ringPoints(0.016, ankleR + 0.001, ankleR + 0.001), 0.003, tieMat, true));
+    if (L.accent) g.add(mesh(new THREE.SphereGeometry(0.009, 12, 10), metal(L.accent), V(sx * (ankleR + 0.004), 0.004, 0), null, V(0.5, 1, 1)));
+    if (L.gem) g.add(mesh(new THREE.SphereGeometry(0.008, 12, 10), gemMat(L.gem), V(0, 0.004, ankleR + 0.004), null, V(1, 1, 0.6)));
+    if (L.bow) for (const b of [-1, 1]) g.add(mesh(new THREE.TorusGeometry(0.012, 0.004, 6, 14), strapMat, V(b * 0.013, 0.008, ankleR + 0.004), [0, 0, b * 0.5], V(1.2, 0.8, 1)));
     parts.push(part(`foot${s}`, g));
   }
   return parts;
@@ -559,9 +606,23 @@ function planarUV(geo, scale = 1) {
 export function makeShield(L) {
   const shape = shieldShape(L.shape);
   const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.022, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 3, curveSegments: 28 });
-  planarUV(geo, 1.04);
-  const faceTex = emblemTexture(colorOf(L.face), L.emblem, colorOf(L.emblemC || '#c9a24a'), { scale: 0.36 });
-  const faceMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.62, metalness: 0.05, bumpMap: emblemBump(L.emblem, 0.36), bumpScale: 3 });
+  // UVs from the outline's bounding square so the face art lines up with the real shape
+  const outline = shape.getPoints(64);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of outline) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const S = Math.max(x1 - x0, y1 - y0) + 0.024, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) - cx) / S + 0.5, (pos.getY(i) - cy) / S + 0.5);
+  const norm = outline.map((p) => [(p.x - cx) / S + 0.5, (p.y - cy) / S + 0.5]);
+  const grainKind = L.grain || (L.emblem === 'stitch' ? 'leather' : 'painted');
+  const scale = 0.36 * (0.56 / S);
+  const faceTex = shieldFaceTexture(`${L.shape}:${L.face}:${L.emblem}:${L.emblemC}:${grainKind}`, norm, colorOf(L.face), grainKind, L.emblem && L.emblem !== 'stitch' ? L.emblem : null, colorOf(L.emblemC || '#c9a24a'), { scale });
+  const gilded = L.emblem && !['stitch', 'fish'].includes(L.emblem);
+  const faceMat = new THREE.MeshStandardMaterial({
+    map: faceTex, roughness: grainKind === 'leather' ? 0.7 : 0.55, metalness: gilded ? 1 : 0.02,
+    metalnessMap: gilded ? emblemBump(L.emblem, scale) : null,
+    bumpMap: L.emblem && L.emblem !== 'stitch' ? emblemBump(L.emblem, scale) : leatherBump(), bumpScale: 3,
+  });
   const rimMat = isMetal(L.rim) ? metal(L.rim) : leather(L.rim);
   const g = new THREE.Group();
   g.add(mesh(geo, [faceMat, rimMat]));
@@ -590,16 +651,17 @@ function buildShield(L) {
 export function makeSword(L) {
   const g = new THREE.Group();
   const bladeLen = 0.44, w = L.wide ? 0.05 : 0.04, y0 = 0.07;
-  const bladeMatBase = isMetal(L.blade);
-  const gripMat = new THREE.MeshStandardMaterial({ map: wrapTexture(L.grip), roughness: 0.8 });
-  g.add(mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.11, 12), gripMat, V(0, 0, 0)));
+  const bladeIsMetal = isMetal(L.blade);
+  const gripMat = new THREE.MeshStandardMaterial({ map: wrapTexture(L.grip), roughness: 0.75, bumpMap: wrapTexture(L.grip), bumpScale: 2 });
+  g.add(mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.11, 16), gripMat, V(0, 0, 0)));
   if (L.scroll) {
     const paper = new THREE.MeshStandardMaterial({ map: textLinesTexture(), roughness: 0.85, side: THREE.DoubleSide });
-    const sheet = mesh(new THREE.BoxGeometry(0.1, bladeLen - 0.04, 0.008), [fabric('#e8dab8'), fabric('#e8dab8'), fabric('#e8dab8'), fabric('#e8dab8'), paper, paper], V(0, y0 + bladeLen / 2, 0));
+    const edge = fabric('#e8dab8');
+    const sheet = mesh(new THREE.BoxGeometry(0.1, bladeLen - 0.04, 0.008), [edge, edge, edge, edge, paper, paper], V(0, y0 + bladeLen / 2, 0));
     g.add(sheet);
     for (const yy of [y0 + 0.01, y0 + bladeLen - 0.02]) {
-      g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.115, 14), fabric('#efe3c6'), V(0, yy, 0), [0, 0, Math.PI / 2]));
-      for (const s of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(0.016, 10, 8), leather(L.grip), V(s * 0.068, yy, 0)));
+      g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.115, 16), fabric('#efe3c6'), V(0, yy, 0), [0, 0, Math.PI / 2]));
+      for (const s of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(0.016, 12, 10), wood(L.grip), V(s * 0.068, yy, 0)));
     }
   } else {
     const s = new THREE.Shape();
@@ -608,37 +670,49 @@ export function makeSword(L) {
     s.lineTo(tipW, y0 + bladeLen - tipW);
     s.absarc(0, y0 + bladeLen - tipW, tipW, 0, Math.PI, false);
     s.lineTo(-w * 0.9, y0);
-    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 3, curveSegments: 20 });
-    geo.translate(0, 0, -0.007);
-    // square UVs near the guard for the emblem
+    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.009, bevelSize: 0.007, bevelSegments: 4, curveSegments: 24 });
+    geo.translate(0, 0, -0.006);
+    // UVs: u across the blade width, v from the guard (0) to the tip (1)
+    const half = Math.max(w * 0.9, tipW) + 0.007;
     const pos = geo.attributes.position, uv = geo.attributes.uv;
-    const S = w * 3.2, cy = y0 + 0.12;
-    for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / S + 0.5, (pos.getY(i) - cy) / S + 0.5);
-    const tex = emblemTexture(colorOf(L.blade), L.emblem || null, L.emblem ? (bladeMatBase ? shade(colorOf(L.blade), -0.25) : '#c9a24a') : '#000', { scale: 0.34 });
-    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-    const bm = new THREE.MeshStandardMaterial({ map: tex, roughness: bladeMatBase ? 0.32 : 0.6, metalness: bladeMatBase ? 0.8 : 0.02 });
-    g.add(mesh(geo, [bm, bladeMatBase ? metal(L.blade) : leather(shade(colorOf(L.blade), -0.06))]));
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / (2 * half) + 0.5, (pos.getY(i) - y0) / bladeLen);
+    const kind = bladeIsMetal ? 'metal' : 'wood';
+    const tex = bladeTexture(colorOf(L.blade), kind, L.emblem || null, L.guardC && isMetal(L.guardC) ? colorOf(L.guardC) : '#d2a84f');
+    const bm = bladeIsMetal
+      ? new THREE.MeshStandardMaterial({ map: tex, color: '#b9b4aa', roughness: 0.32, metalness: 0.75, bumpMap: noiseBump(), bumpScale: 0.3 })
+      : new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.0, bumpMap: woodBump(9), bumpScale: 1.4 });
+    g.add(mesh(geo, [bm, bladeIsMetal ? metal(L.blade) : wood(shade(colorOf(L.blade), -0.08), 9)]));
     if (L.stripe) g.add(mesh(new THREE.BoxGeometry(0.008, bladeLen - 0.1, 0.03), metal(L.stripe), V(0, y0 + bladeLen / 2 - 0.02, 0)));
-    if (L.dots) for (const k of [0, 1, 2]) g.add(mesh(new THREE.SphereGeometry(0.009, 8, 6), metal('gold'), V(0, y0 + 0.12 + k * 0.08, 0.012)));
-    if (L.gem) g.add(mesh(new THREE.SphereGeometry(0.014, 10, 8), gemMat(L.gem), V(0, y0 + 0.02, 0.022)));
+    if (L.dots) for (const k of [0, 1, 2]) for (const f of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(0.008, 10, 8), metal('gold'), V(0, y0 + 0.15 + k * 0.07, f * 0.013), null, V(1, 1, 0.5)));
+    if (L.gem) for (const f of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(0.013, 12, 10), gemMat(L.gem), V(0, y0 + 0.02, f * 0.018), null, V(1, 1.2, 0.6)));
   }
   // guard
-  const gm = isMetal(L.guardC) ? metal(L.guardC) : leather(L.guardC);
+  const gm = isMetal(L.guardC) ? metal(L.guardC, { rough: 0.3 }) : wood(L.guardC);
   switch (L.guard) {
-    case 'curve': g.add(mesh(new THREE.TorusGeometry(0.09, 0.013, 8, 20, Math.PI * 0.6), gm, V(0, -0.02, 0), [0, 0, Math.PI * 0.2])); break;
-    case 'petal': for (const s of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(0.035, 12, 8), gm, V(s * 0.04, 0.062, 0), [0, 0, s * 0.5], V(1.4, 0.55, 0.55))); break;
-    case 'oval': g.add(mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 24), gm, V(0, 0.062, 0), [Math.PI / 2, 0, 0], V(1.3, 0.8, 1))); break;
-    case 'almond': g.add(mesh(new THREE.SphereGeometry(0.05, 16, 10), gm, V(0, 0.062, 0), null, V(1.8, 0.35, 0.55))); break;
-    case 'scroll':
-      g.add(mesh(new THREE.BoxGeometry(0.15, 0.02, 0.03), gm, V(0, 0.062, 0)));
-      for (const s of [-1, 1]) g.add(mesh(new THREE.TorusGeometry(0.018, 0.008, 6, 14), gm, V(s * 0.085, 0.072, 0)));
+    case 'curve': g.add(mesh(new THREE.TorusGeometry(0.075, 0.013, 10, 24, Math.PI * 0.62), gm, V(0, 0.0, 0), [0, 0, Math.PI * 0.19])); break;
+    case 'petal':
+      for (const s of [-1, 1]) {
+        g.add(mesh(new THREE.SphereGeometry(0.034, 16, 10), gm, V(s * 0.042, 0.064, 0), [0, 0, s * 0.45], V(1.45, 0.5, 0.5)));
+        g.add(mesh(new THREE.SphereGeometry(0.016, 12, 8), gm, V(s * 0.03, 0.078, 0), [0, 0, s * 0.9], V(1.4, 0.6, 0.5)));
+      }
+      g.add(mesh(new THREE.SphereGeometry(0.018, 12, 10), gm, V(0, 0.066, 0), null, V(1, 0.8, 0.9)));
       break;
-    default: g.add(mesh(new THREE.BoxGeometry(0.16, 0.022, 0.035), gm, V(0, 0.062, 0)));
+    case 'oval': g.add(mesh(new THREE.TorusGeometry(0.05, 0.012, 10, 28), gm, V(0, 0.062, 0), [Math.PI / 2, 0, 0], V(1.3, 0.8, 1))); break;
+    case 'almond': g.add(mesh(new THREE.SphereGeometry(0.05, 20, 12), gm, V(0, 0.062, 0), null, V(1.8, 0.35, 0.55))); break;
+    case 'scroll':
+      g.add(mesh(new THREE.CapsuleGeometry(0.012, 0.13, 4, 10), gm, V(0, 0.062, 0), [0, 0, Math.PI / 2]));
+      for (const s of [-1, 1]) g.add(mesh(new THREE.TorusGeometry(0.017, 0.008, 8, 16, Math.PI * 1.6), gm, V(s * 0.082, 0.075, 0), [0, 0, s > 0 ? -0.6 : Math.PI + 0.6]));
+      break;
+    default: g.add(mesh(new THREE.CapsuleGeometry(0.013, 0.13, 4, 10), gm, V(0, 0.062, 0), [0, 0, Math.PI / 2], V(1, 1, 1.3)));
   }
-  // pommel
-  const pm = L.pommel === 'wood' ? leather(L.grip) : L.pommel && isMetal(L.pommel) ? metal(L.pommel) : gm;
+  // collar where grip meets guard + pommel
+  g.add(mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.012, 16), gm, V(0, 0.05, 0)));
+  const pm = L.pommel === 'wood' ? wood(L.grip) : L.pommel && isMetal(L.pommel) ? metal(L.pommel) : gm;
   if (L.pommel === 'sun') g.add(emblemDisc(0.03, 'pewter', 'sun', '#555b66', { rim: metal('pewter') }).translateY(-0.085));
-  else g.add(mesh(new THREE.SphereGeometry(0.024, 12, 10), pm, V(0, -0.068, 0)));
+  else {
+    g.add(mesh(new THREE.SphereGeometry(0.024, 16, 12), pm, V(0, -0.07, 0)));
+    g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.01, 16), pm, V(0, -0.055, 0)));
+  }
   return g;
 }
 function buildSword(L) {

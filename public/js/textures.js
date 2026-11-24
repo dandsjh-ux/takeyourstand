@@ -12,7 +12,7 @@ function canvas(w, h = w) {
 function finish(c, { repeat = null, srgb = true } = {}) {
   const t = new THREE.CanvasTexture(c);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
+  t.anisotropy = 8;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   return t;
 }
@@ -32,36 +32,227 @@ function rng(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
-// ---- base noise / weave -------------------------------------------------
+// ---- base detail textures -------------------------------------------------
+// Linen: slubby threads + mottling. Near-white so it multiplies a material colour.
 export function weaveTexture() {
   return cached('weave', () => {
-    const [c, g] = canvas(256);
-    g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, 256, 256);
+    const S = 256;
+    const [c, g] = canvas(S);
+    g.fillStyle = '#efefef'; g.fillRect(0, 0, S, S);
     const r = rng(7);
-    for (let y = 0; y < 256; y += 2) {
-      g.fillStyle = `rgba(0,0,0,${0.03 + r() * 0.04})`; g.fillRect(0, y, 256, 1);
+    for (let i = 0; i < 60; i++) {
+      const x = r() * S, y = r() * S, rad = 20 + r() * 50;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      const a = 0.03 + r() * 0.04;
+      grd.addColorStop(0, r() < 0.5 ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a * 1.5})`); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
-    for (let x = 0; x < 256; x += 2) {
-      g.fillStyle = `rgba(255,255,255,${0.03 + r() * 0.05})`; g.fillRect(x, 0, 1, 256);
-    }
-    for (let i = 0; i < 1800; i++) {
-      g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.05 + r() * 0.07})`;
-      g.fillRect(r() * 256, r() * 256, 1 + r() * 3, 1);
+    for (let y = 0; y < S; y += 3) { g.fillStyle = `rgba(0,0,0,${0.04 + r() * 0.05})`; g.fillRect(0, y, S, 1); }
+    for (let x = 0; x < S; x += 3) { g.fillStyle = `rgba(255,255,255,${0.04 + r() * 0.06})`; g.fillRect(x, 0, 1, S); }
+    for (let i = 0; i < 160; i++) {
+      const horiz = r() < 0.6, len = 10 + r() * 60, x = r() * S, y = r() * S;
+      g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.06 + r() * 0.08})`;
+      if (horiz) g.fillRect(x, y, len, 1 + r() * 1.5); else g.fillRect(x, y, 1 + r() * 1.5, len);
     }
     return finish(c, { repeat: [3, 3] });
   });
 }
+export function weaveBump() {
+  return cached('weaveBump', () => {
+    const t = weaveTexture().clone();
+    t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(6, 6);
+    t.needsUpdate = true;
+    return t;
+  });
+}
 export function noiseBump() {
   return cached('bump', () => {
-    const [c, g] = canvas(128);
-    const img = g.createImageData(128, 128);
+    const S = 256;
+    const [c, g] = canvas(S);
+    g.fillStyle = '#808080'; g.fillRect(0, 0, S, S);
     const r = rng(3);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const v = 110 + r() * 60;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+    for (let i = 0; i < 900; i++) { // hammered dents
+      const x = r() * S, y = r() * S, rad = 3 + r() * 10;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.12 + r() * 0.12})`); grd.addColorStop(1, 'rgba(128,128,128,0)');
+      g.fillStyle = grd; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
-    g.putImageData(img, 0, 0);
-    return finish(c, { repeat: [4, 4], srgb: false });
+    return finish(c, { repeat: [3, 3], srgb: false });
+  });
+}
+export function leatherTexture() {
+  return cached('leather', () => {
+    const S = 256;
+    const [c, g] = canvas(S);
+    g.fillStyle = '#e9e9e9'; g.fillRect(0, 0, S, S);
+    const r = rng(17);
+    for (let i = 0; i < 2600; i++) {
+      const x = r() * S, y = r() * S;
+      g.fillStyle = `rgba(0,0,0,${0.05 + r() * 0.08})`;
+      g.beginPath(); g.ellipse(x, y, 1.5 + r() * 2.5, 1 + r() * 2, r() * 3, 0, 7); g.fill();
+    }
+    for (let i = 0; i < 26; i++) {
+      g.strokeStyle = `rgba(0,0,0,${0.08 + r() * 0.1})`; g.lineWidth = 0.8 + r();
+      g.beginPath(); let x = r() * S, y = r() * S; g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 40; y += (r() - 0.5) * 40; g.lineTo(x, y); }
+      g.stroke();
+    }
+    for (let i = 0; i < 40; i++) {
+      const x = r() * S, y = r() * S, rad = 20 + r() * 40;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},0.07)`); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    return finish(c, { repeat: [2, 2] });
+  });
+}
+export function leatherBump() {
+  return cached('leatherBump', () => { const t = leatherTexture().clone(); t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true; return t; });
+}
+// Wood grain running along V (the length of a prop).
+export function woodTexture(seed = 5) {
+  return cached(`wood:${seed}`, () => {
+    const W = 128, H = 512;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = '#e6e6e6'; g.fillRect(0, 0, W, H);
+    const r = rng(seed);
+    for (let i = 0; i < 46; i++) {
+      let x = r() * W;
+      g.strokeStyle = `rgba(${r() < 0.75 ? '60,35,15' : '255,240,220'},${0.08 + r() * 0.16})`;
+      g.lineWidth = 0.6 + r() * 2.2;
+      g.beginPath(); g.moveTo(x, 0);
+      for (let y = 0; y <= H; y += 16) { x += (r() - 0.5) * 3 + Math.sin(y / 60 + i) * 0.6; g.lineTo(x, y); }
+      g.stroke();
+    }
+    for (let k = 0; k < 2; k++) {
+      const x = r() * W, y = r() * H;
+      for (let rr = 10; rr > 1; rr -= 2) { g.strokeStyle = 'rgba(70,40,15,0.18)'; g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, rr * 0.6, rr * 1.8, 0, 0, 7); g.stroke(); }
+    }
+    return finish(c);
+  });
+}
+export function woodBump(seed = 5) {
+  return cached(`woodBump:${seed}`, () => { const t = woodTexture(seed).clone(); t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true; return t; });
+}
+// Rope / braided cord: twisted strands, many repeats along a tube.
+export function ropeTexture(color) {
+  return cached(`rope:${color}`, () => {
+    const [c, g] = canvas(64, 64);
+    g.fillStyle = color; g.fillRect(0, 0, 64, 64);
+    for (let i = -2; i < 4; i++) {
+      const grd = g.createLinearGradient(i * 24, 64, i * 24 + 40, 0);
+      grd.addColorStop(0, shade(color, -0.2)); grd.addColorStop(0.5, shade(color, 0.12)); grd.addColorStop(1, shade(color, -0.2));
+      g.fillStyle = grd;
+      g.beginPath(); g.moveTo(i * 24, 64); g.lineTo(i * 24 + 20, 64); g.lineTo(i * 24 + 52, 0); g.lineTo(i * 24 + 32, 0); g.fill();
+    }
+    return finish(c, { repeat: [14, 1] });
+  });
+}
+
+// ---- skin & hair ---------------------------------------------------------
+export function skinTexture() {
+  return cached('skin', () => {
+    const S = 256;
+    const [c, g] = canvas(S);
+    g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, S, S);
+    const r = rng(23);
+    for (let i = 0; i < 120; i++) {
+      const x = r() * S, y = r() * S, rad = 6 + r() * 28;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, r() < 0.5 ? 'rgba(180,60,50,0.035)' : 'rgba(255,255,255,0.05)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(0,0,0,${0.015 + r() * 0.02})`; g.fillRect(r() * S, r() * S, 1, 1); }
+    return finish(c, { repeat: [2, 2] });
+  });
+}
+export function skinBump() {
+  return cached('skinBump', () => { const t = skinTexture().clone(); t.colorSpace = THREE.NoColorSpace; t.repeat.set(4, 4); t.needsUpdate = true; return t; });
+}
+// Hair strands: streaks along V (from the crown down). kind: 'straight' | 'curly'
+export function hairTexture(kind = 'straight') {
+  return cached(`hair:${kind}`, () => {
+    const W = 512, H = 512;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = '#d4d4d4'; g.fillRect(0, 0, W, H);
+    const r = rng(kind === 'curly' ? 41 : 31);
+    if (kind === 'curly') {
+      for (let i = 0; i < 2600; i++) {
+        const x = r() * W, y = r() * H, rad = 3 + r() * 7;
+        g.strokeStyle = `rgba(${r() < 0.6 ? '0,0,0' : '255,255,255'},${0.18 + r() * 0.25})`;
+        g.lineWidth = 1 + r() * 1.5;
+        g.beginPath(); g.arc(x, y, rad, r() * 6, r() * 6 + 3.5 + r() * 2); g.stroke();
+      }
+    } else {
+      for (let i = 0; i < 900; i++) {
+        const x = r() * W;
+        const y0 = r() * H * 0.3, len = H * (0.4 + r() * 0.7), wave = 2 + r() * 4;
+        g.strokeStyle = `rgba(${r() < 0.6 ? '0,0,0' : '255,255,255'},${0.08 + r() * 0.22})`;
+        g.lineWidth = 0.7 + r() * 1.8;
+        g.beginPath(); g.moveTo(x, y0);
+        for (let y = y0; y < y0 + len; y += 12) g.lineTo(x + Math.sin(y / 40 + i) * wave, y);
+        g.stroke();
+      }
+    }
+    return finish(c, { repeat: kind === 'curly' ? [3, 2] : [2, 1] });
+  });
+}
+export function hairBump(kind = 'straight') {
+  return cached(`hairBump:${kind}`, () => { const t = hairTexture(kind).clone(); t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true; return t; });
+}
+// Alpha mask for the hair cap (sphere UVs: u around, v = polar angle) with a natural hairline.
+// u = 0.25 is the forehead and 0.75 the nape. thetaLen = the cap's polar extent as a fraction of PI.
+export function hairlineAlpha(style = 'short', thetaLen = 0.8) {
+  return cached(`hairline:${style}:${thetaLen}`, () => {
+    const W = 512, H = 256;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+    const long = style === 'long';
+    // [offset from the forehead in u, polar angle as a fraction of PI]
+    const ctrl = [[0, 0.33], [0.05, 0.32], [0.1, 0.3], [0.15, 0.36], [0.18, 0.47], [0.195, 0.53], [0.215, 0.49], [0.25, long ? 0.47 : 0.45],
+      [0.3, long ? 0.64 : 0.6], [0.4, long ? 0.76 : 0.68], [0.5, long ? 0.79 : 0.71]];
+    const sample = (u) => {
+      let d = Math.abs(((u - 0.25 + 1.5) % 1) - 0.5); // distance from the forehead around the head, 0..0.5
+      for (let i = 1; i < ctrl.length; i++) if (d <= ctrl[i][0]) {
+        const [d0, t0] = ctrl[i - 1], [d1, t1] = ctrl[i];
+        const k = (d - d0) / (d1 - d0), s = k * k * (3 - 2 * k);
+        return t0 + (t1 - t0) * s;
+      }
+      return ctrl[ctrl.length - 1][1];
+    };
+    const r = rng(77);
+    g.fillStyle = '#fff';
+    g.beginPath(); g.moveTo(0, 0);
+    for (let x = 0; x <= W; x += 2) g.lineTo(x, (sample(x / W) / thetaLen) * H);
+    g.lineTo(W, 0); g.closePath(); g.fill();
+    // wispy edge
+    for (let x = 0; x < W; x += 1.5) {
+      const y = (sample(x / W) / thetaLen) * H;
+      g.strokeStyle = `rgba(255,255,255,${0.4 + r() * 0.6})`; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, y - 3); g.lineTo(x + (r() - 0.5) * 2, y + r() * 5); g.stroke();
+    }
+    return finish(c, { srgb: false });
+  });
+}
+// Iris for a sphere-cap eye (v runs from the pupil centre outwards).
+export function irisTexture(color) {
+  return cached(`iris:${color}`, () => {
+    const W = 128, H = 256;
+    const [c, g] = canvas(W, H);
+    const grd = g.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#050403'); grd.addColorStop(0.34, '#0a0806');
+    grd.addColorStop(0.38, shade(color, -0.14)); grd.addColorStop(0.62, shade(color, 0.12));
+    grd.addColorStop(0.84, color); grd.addColorStop(0.92, shade(color, -0.3)); grd.addColorStop(1, '#1a120c');
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+    const r = rng(19);
+    for (let i = 0; i < 160; i++) {
+      const x = r() * W;
+      g.strokeStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,230'},${0.1 + r() * 0.15})`; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, H * 0.4); g.lineTo(x + (r() - 0.5) * 3, H * (0.7 + r() * 0.2)); g.stroke();
+    }
+    return finish(c);
   });
 }
 
@@ -76,8 +267,8 @@ export function metal(name, opts = {}) {
   const key = `metal:${name}:${opts.rough ?? ''}`;
   if (!matCache.has(key)) {
     matCache.set(key, keep(new THREE.MeshStandardMaterial({
-      color: METALS[name] || name, metalness: 0.82, roughness: opts.rough ?? 0.36,
-      bumpMap: noiseBump(), bumpScale: 0.4,
+      color: METALS[name] || name, metalness: 0.85, roughness: opts.rough ?? 0.34,
+      bumpMap: noiseBump(), bumpScale: 0.6,
     })));
   }
   return matCache.get(key);
@@ -86,7 +277,8 @@ export function fabric(color, opts = {}) {
   const key = `fabric:${color}:${opts.rough ?? ''}:${opts.side ?? ''}`;
   if (!matCache.has(key)) {
     matCache.set(key, keep(new THREE.MeshStandardMaterial({
-      color, map: weaveTexture(), roughness: opts.rough ?? 0.92, metalness: 0,
+      color, map: weaveTexture(), roughness: opts.rough ?? 0.9, metalness: 0,
+      bumpMap: weaveBump(), bumpScale: 1.4,
       side: opts.side ?? THREE.FrontSide,
     })));
   }
@@ -95,8 +287,20 @@ export function fabric(color, opts = {}) {
 export function leather(color) {
   const key = `leather:${color}`;
   if (!matCache.has(key)) {
-    matCache.set(key, keep(new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.05, bumpMap: noiseBump(), bumpScale: 0.8 })));
+    matCache.set(key, keep(new THREE.MeshStandardMaterial({ color, map: leatherTexture(), roughness: 0.6, metalness: 0.02, bumpMap: leatherBump(), bumpScale: 1.6 })));
   }
+  return matCache.get(key);
+}
+export function wood(color, seed = 5) {
+  const key = `wood:${color}:${seed}`;
+  if (!matCache.has(key)) {
+    matCache.set(key, keep(new THREE.MeshStandardMaterial({ color, map: woodTexture(seed), roughness: 0.62, bumpMap: woodBump(seed), bumpScale: 1.2 })));
+  }
+  return matCache.get(key);
+}
+export function rope(color) {
+  const key = `rope:${color}`;
+  if (!matCache.has(key)) matCache.set(key, keep(new THREE.MeshStandardMaterial({ map: ropeTexture(color), roughness: 0.85, bumpMap: ropeTexture(color), bumpScale: 2 })));
   return matCache.get(key);
 }
 export function plain(color, opts = {}) {
@@ -313,6 +517,123 @@ export function emblemBump(emblem, scale = 0.4) {
       drawEmblem(g, emblem, '#fff');
     }
     return finish(c, { srgb: false });
+  });
+}
+
+// ---- prop faces (swords, shields) ------------------------------------------
+function goldGradient(g, base) {
+  const grd = g.createLinearGradient(-0.7, -0.8, 0.7, 0.8);
+  grd.addColorStop(0, shade(base, 0.22)); grd.addColorStop(0.45, base); grd.addColorStop(0.55, shade(base, 0.12)); grd.addColorStop(1, shade(base, -0.2));
+  return grd;
+}
+function grain(g, W, H, kind, r) {
+  if (kind === 'wood' || kind === 'painted') {
+    const a = kind === 'wood' ? 1 : 0.45;
+    for (let i = 0; i < 40; i++) {
+      let x = r() * W;
+      g.strokeStyle = `rgba(${r() < 0.75 ? '60,35,15' : '255,240,220'},${(0.07 + r() * 0.14) * a})`;
+      g.lineWidth = 0.6 + r() * 2;
+      g.beginPath(); g.moveTo(x, 0);
+      for (let y = 0; y <= H; y += 14) { x += (r() - 0.5) * 2.5 + Math.sin(y / 50 + i) * 0.5; g.lineTo(x, y); }
+      g.stroke();
+    }
+  } else if (kind === 'metal') {
+    for (let i = 0; i < 260; i++) {
+      const x = r() * W;
+      g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${0.04 + r() * 0.08})`;
+      g.fillRect(x, r() * H * 0.3, 0.6 + r() * 1.2, H * (0.4 + r() * 0.6));
+    }
+  } else if (kind === 'leather') {
+    for (let i = 0; i < 1800; i++) {
+      g.fillStyle = `rgba(0,0,0,${0.04 + r() * 0.06})`;
+      g.beginPath(); g.ellipse(r() * W, r() * H, 1.5 + r() * 3, 1 + r() * 2, r() * 3, 0, 7); g.fill();
+    }
+    for (let i = 0; i < 30; i++) {
+      const x = r() * W, y = r() * H, rad = 20 + r() * 60;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, `rgba(${r() < 0.6 ? '90,60,30' : '255,255,255'},0.08)`); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+  }
+}
+
+// Blade face: u across the width, v from the guard (0) to the tip (1).
+export function bladeTexture(color, kind, emblem, emblemC) {
+  return cached(`blade:${color}:${kind}:${emblem}:${emblemC}`, () => {
+    const W = 128, H = 512;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = color; g.fillRect(0, 0, W, H);
+    const r = rng(13);
+    grain(g, W, H, kind, r);
+    // edge shading: darker bevels, brighter centre
+    const eg = g.createLinearGradient(0, 0, W, 0);
+    eg.addColorStop(0, 'rgba(0,0,0,0.28)'); eg.addColorStop(0.18, 'rgba(0,0,0,0.04)'); eg.addColorStop(0.5, 'rgba(255,255,255,0.10)');
+    eg.addColorStop(0.82, 'rgba(0,0,0,0.04)'); eg.addColorStop(1, 'rgba(0,0,0,0.28)');
+    g.fillStyle = eg; g.fillRect(0, 0, W, H);
+    // central fuller groove (metal) or painted centre line (wood)
+    if (kind === 'metal') {
+      g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(W / 2 - 5, H * 0.12, 10, H * 0.7);
+      g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(W / 2 + 3, H * 0.12, 2, H * 0.7);
+    } else {
+      g.fillStyle = 'rgba(0,0,0,0.08)'; g.fillRect(W / 2 - 1.5, H * 0.08, 3, H * 0.72);
+    }
+    // worn tip
+    const tg = g.createLinearGradient(0, 0, 0, H * 0.15);
+    tg.addColorStop(0, 'rgba(0,0,0,0.12)'); tg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = tg; g.fillRect(0, 0, W, H * 0.15);
+    if (emblem) {
+      const cx = W / 2, cy = H * 0.78, sc = W * 0.34;
+      g.save(); g.translate(cx, cy); g.scale(sc, sc);
+      g.save(); g.translate(0.03, 0.04); drawEmblem(g, emblem, 'rgba(0,0,0,0.35)'); g.restore();
+      drawEmblem(g, emblem, kind === 'metal' ? shade(color, -0.3) : goldGradient(g, emblemC || '#d2a84f'));
+      g.restore();
+    }
+    const t = finish(c);
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
+  });
+}
+
+// Shield face drawn inside its real outline (pts in 0..1 UV space): grain, edge shading,
+// stitched border and a gilded emblem with relief.
+export function shieldFaceTexture(key, pts, face, kind, emblem, emblemC, { scale = 0.36, stitch = true } = {}) {
+  return cached(`shield:${key}`, () => {
+    const S = 512;
+    const [c, g] = canvas(S);
+    g.fillStyle = face; g.fillRect(0, 0, S, S);
+    const r = rng(29);
+    grain(g, S, S, kind, r);
+    const path = (k = 1) => {
+      g.beginPath();
+      pts.forEach(([u, v], i) => {
+        const x = (0.5 + (u - 0.5) * k) * S, y = (1 - (0.5 + (v - 0.5) * k)) * S;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      });
+      g.closePath();
+    };
+    // soft inner shadow towards the rim + gentle dome highlight
+    g.save(); path(); g.clip();
+    g.shadowColor = 'rgba(40,20,5,0.55)'; g.shadowBlur = 38;
+    g.lineWidth = 30; g.strokeStyle = 'rgba(40,20,5,0.35)'; path(1.02); g.stroke();
+    g.shadowBlur = 0;
+    const hg = g.createRadialGradient(S * 0.42, S * 0.36, 10, S * 0.5, S * 0.5, S * 0.6);
+    hg.addColorStop(0, 'rgba(255,255,255,0.16)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hg; g.fillRect(0, 0, S, S);
+    g.restore();
+    if (stitch) {
+      g.setLineDash([9, 7]); g.lineWidth = 3.5; g.lineCap = 'round';
+      g.strokeStyle = shade(face, -0.3); path(0.88); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 1.5; g.save(); g.translate(-1, -1); path(0.88); g.stroke(); g.restore();
+      g.setLineDash([]);
+    }
+    if (emblem) {
+      g.save(); g.translate(S / 2, S / 2); g.scale(S * scale, S * scale);
+      g.save(); g.translate(0.025, 0.03); drawEmblem(g, emblem, 'rgba(30,15,5,0.45)'); g.restore();
+      drawEmblem(g, emblem, goldGradient(g, emblemC));
+      g.save(); g.translate(-0.012, -0.014); g.globalAlpha = 0.3; drawEmblem(g, emblem, '#fff8e0'); g.restore();
+      g.restore();
+    }
+    return finish(c);
   });
 }
 

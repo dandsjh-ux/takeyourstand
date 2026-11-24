@@ -7,7 +7,7 @@ Students join on their own devices, dress a 3D character in each piece of the Ar
 ## How a game runs
 
 1. **Teacher** opens the site and taps **"I'm the teacher — host a game"**. A 4-letter code and a QR code appear. Put this screen on a projector if you have one.
-2. **Students** scan the QR code (or go to the site and type the code), enter a first name and pick Boy or Girl. While waiting in the lobby they can design their look (skin tone, hair style, hair colour) and choose a team.
+2. **Students** scan the QR code (or go to the site and type the code), enter a first name and pick Boy or Girl. While waiting in the lobby they can design their look (skin tone, hair style, hair colour, eye colour), choose a team and **name their team** (teams start as Red Team, Blue Team and so on until someone names them).
 3. The teacher taps **Start styling**. The timer starts (5 minutes by default). Students:
    - work through the tabs: Tunic → **Belt of Truth → Breastplate of Righteousness → Shoes of the Gospel of Peace → Shield of Faith → Helmet of Salvation → Sword of the Spirit** → Bonus → Prayer → Runway. The camera zooms to the body part each tab dresses. Pinch to zoom, drag to turn, double-tap to reset.
    - tap the **🪙 coin button** to answer Bible questions and earn coins
@@ -25,7 +25,7 @@ Students join on their own devices, dress a 3D character in each piece of the Ar
 | **Game** | Styling time, runway seconds per student, coins per correct answer, starting coins, shop price multiplier, **unlock everything** (free-play), whether students choose teams or are auto-balanced |
 | **Questions** | Upload a CSV (replace the list or add to it), download a template or the current list, write questions by hand, delete questions, reset to the built-in Armor of God set |
 | **Voting** | Host weight (default ×5, the highest), judge weight (×3), student weight (×1), **team-size adjustment** (equal power per team / partly balanced / none), how teammate votes count (half / full / none), a per-team multiplier, full-armor bonus, prayer bonus, team score as average or total. A **live table** shows each group's share of the voting power as students join |
-| **Teams** | 1–6 teams and their names |
+| **Teams** | 1–6 teams. Students name their own teams by default (any member can rename it in the lobby or while styling); the tab shows who named each team, and you can override any name or switch student naming off in the Game tab |
 
 During styling the **Progress** tab shows each student's armor count, coins, quiz record, ready status and prayer. You can clear an inappropriate prayer there. A basic word filter also runs on names and prayers.
 
@@ -34,6 +34,16 @@ During styling the **Progress** tab shows each student's armor count, coins, qui
 A presenter's score is the **weighted average** of the stars they received, plus bonuses (default: +0.5 for wearing all six armor pieces and +0.25 for writing a prayer).
 
 With *Equal power per team*, a student's weight is `student weight × (average team size ÷ their team size) × team multiplier`. For example, with a team of 3 and a team of 1, each vote from the 1-person team counts ×2 and each vote from the 3-person team counts ×0.67, so both teams have the same total say. Nobody can vote for themselves.
+
+## Dropping out and rejoining
+
+Nobody loses their progress if their connection drops. Their look, coins, unlocks, prayer, poses and votes are all kept.
+
+- **Refresh, phone screen lock, Wi-Fi blip:** the game reconnects by itself (a "Reconnecting…" banner shows meanwhile). Anything changed while offline is sent up as soon as the connection is back.
+- **Closed the tab or browser:** opening the game link again (the QR code or the address bar) puts the student straight back in their seat. The plain home page also shows a **Rejoin as …** button.
+- **Different device or cleared browser:** typing the same name with the same game code takes back that student's seat, as long as nobody is currently playing in it. A second student with the same name gets their own seat as "Name 2".
+- **Teacher:** refreshing keeps the host screen. The home page offers **Resume hosting** for the last game.
+- **Server restart or crash:** games are saved to disk every couple of seconds and restored when the server starts again, with a short grace period so everyone can reconnect.
 
 ## Question CSV format
 
@@ -68,9 +78,9 @@ Open http://localhost:3000. To test on phones on the same Wi-Fi, use your comput
 3. Share your `https://<name>.onrender.com` address. The host screen builds its QR code from that address automatically.
 
 Notes:
-- Games are kept in server memory. That keeps things simple (no database), but a redeploy or restart ends any games in progress. Players get sent back to the join screen with a message.
+- Games are saved to `data/rooms.json` (or `$DATA_DIR/rooms.json`) and restored after a restart, so a crash doesn't end a lesson. Render's normal filesystem is wiped on each **redeploy**, so avoid deploying during class. To keep games across redeploys as well, add a Render persistent disk (paid plans) and set the `DATA_DIR` environment variable to its mount path.
 - On Render's **free plan** the service goes to sleep after about 15 minutes without visitors and takes about a minute to wake. **Open the site a few minutes before class.** A paid instance stays awake.
-- Keep the service at **one instance**, because rooms live in memory.
+- Keep the service at **one instance**, because games are held by a single server.
 
 ## Project layout
 
@@ -97,4 +107,4 @@ public/
     ui.js                 DOM helpers and synthesised sound effects
 ```
 
-All 3D models are built in code; there are no model files to load. The wardrobe follows the three reference packs (6 masculine and 6 feminine designs per armor category, plus the biblical bonus wardrobe). Extra designs added for variety include Galilee Fisher and Shepherd tunics, Lydia's purple gown and shawl, a golden cord belt, a Dove of Peace breastplate, Sunrise sandals, an Ichthys shield, a Morning Star helmet, a Scroll of the Word sword, a shepherd's fleece and headscarf, David's lyre, an oil lamp, a dove and Miriam's tambourine. There are also 12 hair styles, 8 skin tones, 7 hair colours, 4 walks and 12 poses.
+All 3D models are built in code; there are no model files to load. Materials use generated textures: linen weave, leather grain, wood grain, hammered metal, braided rope, skin, hair strands and curls, a natural hairline, and iris detail. Characters blink, and sandal straps are shaped to the foot. The wardrobe follows the three reference packs (6 masculine and 6 feminine designs per armor category, plus the biblical bonus wardrobe). Extra designs added for variety include Galilee Fisher and Shepherd tunics, Lydia's purple gown and shawl, a golden cord belt, a Dove of Peace breastplate, Sunrise sandals, an Ichthys shield, a Morning Star helmet, a Scroll of the Word sword, a shepherd's fleece and headscarf, David's lyre, an oil lamp, a dove and Miriam's tambourine. There are also 12 hair styles, 8 skin tones, 7 hair colours, 4 walks and 12 poses.
