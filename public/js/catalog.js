@@ -64,21 +64,21 @@ const I = (id, cat, name, price, look, extra = {}) => ({ id, cat, name, price, l
 
 export const ITEMS = [
   // TUNICS (base clothes)
-  I('tunic-v1', 'tunic', 'Sand Linen Tunic', 0, { kind: 'tunic', color: '#d9c9a8', trim: '#c2ad86', len: 'knee', under: '#e9e0cc', sleeve: 'short', belt: '#8a5a33' }),
-  I('tunic-v2', 'tunic', 'Sage Tunic', 0, { kind: 'tunic', color: '#8f9c6c', trim: '#7b8a5a', len: 'knee', under: '#e4dcc6', sleeve: 'short' }),
-  I('tunic-g1', 'tunic', 'Dusty Rose Dress', 0, { kind: 'dress', color: '#c48686', collar: '#dcc9a0', len: 'ankle', sleeve: 'elbow', pleats: true }),
-  I('tunic-v3', 'tunic', 'Terracotta Tunic', 15, { kind: 'tunic', color: '#b0603e', trim: '#8f4a2e', len: 'knee', under: '#e4d6bc', sleeve: 'short' }),
-  I('tunic-g2', 'tunic', 'Olive Grove Dress', 15, { kind: 'dress', color: '#717b44', trim: '#c9a24a', len: 'ankle', sleeve: 'elbow', sleeveBand: 'olive' }),
-  I('tunic-v4', 'tunic', 'Indigo Tunic', 20, { kind: 'tunic', color: '#3d4c80', trim: '#2c3866', len: 'knee', under: '#e4dcc6', sleeve: 'short' }),
-  I('tunic-g3', 'tunic', 'Lapis & Sand Gown', 20, { kind: 'dress', color: '#5b6b97', panel: '#dcc49a', len: 'ankle', sleeve: 'elbow', beads: '#e8e0d0' }),
-  I('tunic-v5', 'tunic', 'Date-Brown Tunic', 25, { kind: 'tunic', color: '#7c5236', trim: '#5f3e28', len: 'knee', under: '#e9dfc8', sleeve: 'short' }),
-  I('tunic-g4', 'tunic', 'Mulberry Drape', 25, { kind: 'dress', color: '#e8dcc4', drape: '#7f3f5e', len: 'ankle', sleeve: 'elbow' }),
-  I('tunic-v6', 'tunic', 'Linen & Blue Trim', 30, { kind: 'tunic', color: '#e6dcc6', trim: '#6f86b0', len: 'knee', under: '#ece4d2', sleeve: 'short' }),
-  I('tunic-g5', 'tunic', 'Pomegranate Gown', 30, { kind: 'dress', color: '#a2412f', hem: 'geo', trim: '#d1a447', len: 'ankle', sleeve: 'elbow' }),
-  I('tunic-g6', 'tunic', 'Pearl & Honey Layers', 35, { kind: 'dress', color: '#efe5d3', layer: '#dbbd85', trim: '#c9a24a', len: 'ankle', sleeve: 'elbow', hem: 'leaf' }),
-  I('tunic-x1', 'tunic', 'Galilee Fisher Tunic', 25, { kind: 'tunic', color: '#4f86a6', trim: '#f0ead8', len: 'knee', under: '#e9e1cd', sleeve: 'short', stripes: '#f0ead8' }, { noIcon: true }),
-  I('tunic-x2', 'tunic', 'Shepherd Stripes', 25, { kind: 'tunic', color: '#a98a62', trim: '#5f4630', len: 'knee', under: '#e9e1cd', sleeve: 'short', stripes: '#5f4630' }, { noIcon: true }),
-  I('tunic-x3', 'tunic', 'Lydia\'s Purple', 35, { kind: 'dress', color: '#6a3f86', trim: '#d6ae52', len: 'ankle', sleeve: 'elbow', hem: 'geo' }, { noIcon: true }),
+  I('tunic-v1', 'tunic', 'Sand Linen Tunic', 0, { kind: 'tunic', color: '#d9c9a8', trim: '#c2ad86', len: 'knee', under: '#e9e0cc', sleeve: 'short', belt: '#8a5a33' }, { body: 'boy' }),
+  I('tunic-v2', 'tunic', 'Sage Tunic', 0, { kind: 'tunic', color: '#8f9c6c', trim: '#7b8a5a', len: 'knee', under: '#e4dcc6', sleeve: 'short' }, { body: 'boy' }),
+  I('tunic-g1', 'tunic', 'Dusty Rose Dress', 0, { kind: 'dress', color: '#c48686', collar: '#dcc9a0', len: 'ankle', sleeve: 'elbow', pleats: true }, { body: 'girl' }),
+  I('tunic-v3', 'tunic', 'Terracotta Tunic', 15, { kind: 'tunic', color: '#b0603e', trim: '#8f4a2e', len: 'knee', under: '#e4d6bc', sleeve: 'short' }, { body: 'boy' }),
+  I('tunic-g2', 'tunic', 'Olive Grove Dress', 15, { kind: 'dress', color: '#717b44', trim: '#c9a24a', len: 'ankle', sleeve: 'elbow', sleeveBand: 'olive' }, { body: 'girl' }),
+  I('tunic-v4', 'tunic', 'Indigo Tunic', 20, { kind: 'tunic', color: '#3d4c80', trim: '#2c3866', len: 'knee', under: '#e4dcc6', sleeve: 'short' }, { body: 'boy' }),
+  I('tunic-g3', 'tunic', 'Lapis & Sand Gown', 20, { kind: 'dress', color: '#5b6b97', panel: '#dcc49a', len: 'ankle', sleeve: 'elbow', beads: '#e8e0d0' }, { body: 'girl' }),
+  I('tunic-v5', 'tunic', 'Date-Brown Tunic', 25, { kind: 'tunic', color: '#7c5236', trim: '#5f3e28', len: 'knee', under: '#e9dfc8', sleeve: 'short' }, { body: 'boy' }),
+  I('tunic-g4', 'tunic', 'Mulberry Drape', 25, { kind: 'dress', color: '#e8dcc4', drape: '#7f3f5e', len: 'ankle', sleeve: 'elbow' }, { body: 'girl' }),
+  I('tunic-v6', 'tunic', 'Linen & Blue Trim', 30, { kind: 'tunic', color: '#e6dcc6', trim: '#6f86b0', len: 'knee', under: '#ece4d2', sleeve: 'short' }, { body: 'boy' }),
+  I('tunic-g5', 'tunic', 'Pomegranate Gown', 30, { kind: 'dress', color: '#a2412f', hem: 'geo', trim: '#d1a447', len: 'ankle', sleeve: 'elbow' }, { body: 'girl' }),
+  I('tunic-g6', 'tunic', 'Pearl & Honey Layers', 35, { kind: 'dress', color: '#efe5d3', layer: '#dbbd85', trim: '#c9a24a', len: 'ankle', sleeve: 'elbow', hem: 'leaf' }, { body: 'girl' }),
+  I('tunic-x1', 'tunic', 'Galilee Fisher Tunic', 25, { kind: 'tunic', color: '#4f86a6', trim: '#f0ead8', len: 'knee', under: '#e9e1cd', sleeve: 'short', stripes: '#f0ead8' }, { noIcon: true, body: 'boy' }),
+  I('tunic-x2', 'tunic', 'Shepherd Stripes', 25, { kind: 'tunic', color: '#a98a62', trim: '#5f4630', len: 'knee', under: '#e9e1cd', sleeve: 'short', stripes: '#5f4630' }, { noIcon: true, body: 'boy' }),
+  I('tunic-x3', 'tunic', 'Lydia\'s Purple', 35, { kind: 'dress', color: '#6a3f86', trim: '#d6ae52', len: 'ankle', sleeve: 'elbow', hem: 'geo' }, { noIcon: true, body: 'girl' }),
 
   // BELT OF TRUTH
   I('belt-v1', 'belt', 'Flax Knot Sash', 0, { style: 'sash', color: '#ddd0b3', knot: true, tails: true }),
@@ -111,19 +111,19 @@ export const ITEMS = [
   I('breastplate-x1', 'breastplate', 'Dove of Peace Plate', 35, { style: 'cuirass', metal: 'pewter', emblem: 'dove', seams: true }, { noIcon: true }),
 
   // SHOES OF THE GOSPEL OF PEACE
-  I('shoes-v1', 'shoes', 'Tan Two-Band Sandals', 0, { color: '#c49a6c', bands: [0.35, 0.7], ankle: true }),
-  I('shoes-v2', 'shoes', 'Caramel Rope Sandals', 0, { color: '#bd8a50', bands: [0.4, 0.72], cross: true, rope: true }),
-  I('shoes-g1', 'shoes', 'Rose Scallop Sandals', 0, { color: '#cf9494', bands: [0.45, 0.72], wide: true, ankle: true, bow: true }),
-  I('shoes-v3', 'shoes', 'Terracotta Cross Straps', 15, { color: '#a4502e', bands: [0.75], cross: true, ankle: true, accent: 'bronze' }),
-  I('shoes-g2', 'shoes', 'Olive Branch Sandals', 15, { color: '#6f7a45', bands: [0.7], cross: true, ankle: true, accent: 'bronze' }),
-  I('shoes-v4', 'shoes', 'Indigo Wraps', 20, { color: '#2f3d6d', bands: [0.3, 0.55, 0.8], wrap: 1, tie: '#c49a6c' }),
-  I('shoes-g3', 'shoes', 'Blue Woven Wraps', 20, { color: '#5a73a8', bands: [0.5, 0.75], cross: true, ankle: true, tie: '#c49a6c', gem: '#2b5fc0' }),
-  I('shoes-v5', 'shoes', 'Traveler Ankle Sandals', 25, { color: '#6b3e22', bands: [0.4, 0.75], high: 3, sole: '#3a2418' }),
-  I('shoes-g4', 'shoes', 'Mulberry Crisscross', 25, { color: '#7f3f5e', bands: [0.75], cross: true, ankle: true, accent: 'bronze' }),
-  I('shoes-v6', 'shoes', 'Honey Dress Sandals', 30, { color: '#e6dcc6', color2: '#c9954f', bands: [0.4, 0.7], ankle: true, accent: 'brass' }),
-  I('shoes-g5', 'shoes', 'Pomegranate Slings', 30, { color: '#9b2c2c', bands: [0.55, 0.78], heel: true, accent: 'bronze' }),
-  I('shoes-g6', 'shoes', 'Pearl Gold-Thread Sandals', 35, { color: '#efe7d8', bands: [0.72], cross: true, high: 2, tie: '#d4a95a', accent: 'gold' }),
-  I('shoes-x1', 'shoes', 'Sunrise Messenger Sandals', 35, { color: '#e08a3c', color2: '#f3c14d', bands: [0.35, 0.6, 0.8], ankle: true, high: 1, accent: 'gold' }, { noIcon: true }),
+  I('shoes-v1', 'shoes', 'Tan Two-Band Sandals', 0, { color: '#c49a6c', bands: [0.35, 0.7], ankle: true }, { body: 'boy' }),
+  I('shoes-v2', 'shoes', 'Caramel Rope Sandals', 0, { color: '#bd8a50', bands: [0.4, 0.72], cross: true, rope: true }, { body: 'boy' }),
+  I('shoes-g1', 'shoes', 'Rose Scallop Sandals', 0, { color: '#cf9494', bands: [0.45, 0.72], wide: true, ankle: true, bow: true }, { body: 'girl' }),
+  I('shoes-v3', 'shoes', 'Terracotta Cross Straps', 15, { color: '#a4502e', bands: [0.75], cross: true, ankle: true, accent: 'bronze' }, { body: 'boy' }),
+  I('shoes-g2', 'shoes', 'Olive Branch Sandals', 15, { color: '#6f7a45', bands: [0.7], cross: true, ankle: true, accent: 'bronze' }, { body: 'girl' }),
+  I('shoes-v4', 'shoes', 'Indigo Wraps', 20, { color: '#2f3d6d', bands: [0.3, 0.55, 0.8], wrap: 1, tie: '#c49a6c' }, { body: 'boy' }),
+  I('shoes-g3', 'shoes', 'Blue Woven Wraps', 20, { color: '#5a73a8', bands: [0.5, 0.75], cross: true, ankle: true, tie: '#c49a6c', gem: '#2b5fc0' }, { body: 'girl' }),
+  I('shoes-v5', 'shoes', 'Traveler Ankle Sandals', 25, { color: '#6b3e22', bands: [0.4, 0.75], high: 3, sole: '#3a2418' }, { body: 'boy' }),
+  I('shoes-g4', 'shoes', 'Mulberry Crisscross', 25, { color: '#7f3f5e', bands: [0.75], cross: true, ankle: true, accent: 'bronze' }, { body: 'girl' }),
+  I('shoes-v6', 'shoes', 'Honey Dress Sandals', 30, { color: '#e6dcc6', color2: '#c9954f', bands: [0.4, 0.7], ankle: true, accent: 'brass' }, { body: 'boy' }),
+  I('shoes-g5', 'shoes', 'Pomegranate Slings', 30, { color: '#9b2c2c', bands: [0.55, 0.78], heel: true, accent: 'bronze' }, { body: 'girl' }),
+  I('shoes-g6', 'shoes', 'Pearl Gold-Thread Sandals', 35, { color: '#efe7d8', bands: [0.72], cross: true, high: 2, tie: '#d4a95a', accent: 'gold' }, { body: 'girl' }),
+  I('shoes-x1', 'shoes', 'Sunrise Messenger Sandals', 35, { color: '#e08a3c', color2: '#f3c14d', bands: [0.35, 0.6, 0.8], ankle: true, high: 1, accent: 'gold' }, { noIcon: true, body: 'boy' }),
 
   // SHIELD OF FAITH
   I('shield-v1', 'shield', 'Rawhide Round Shield', 0, { shape: 'circle', face: '#d6c099', rim: '#9c6a3c', grain: 'leather', deco: ['lacing'] }),
@@ -197,6 +197,11 @@ export const ITEMS = [
   I('acc-tambourine', 'acc', 'Miriam\'s Tambourine', 35, { kind: 'tambourine', place: 'hipL' }, { bonus: true, noIcon: true }),
 ];
 
+// Tunics and shoes are split by body: item.body is 'boy' or 'girl'. Everything else fits both.
+export const GENDERED_CATS = ['tunic', 'shoes'];
+export const fitsBody = (item, body) => !item?.body || item.body === (body === 'girl' ? 'girl' : 'boy');
+export const itemsForBody = (cat, body) => ITEMS.filter((i) => i.cat === cat && fitsBody(i, body));
+
 export const ITEM_MAP = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 
 // ---- Runway walks & poses ---------------------------------------------
@@ -223,7 +228,7 @@ export const POSES = [
 ];
 export const POSE_MAP = Object.fromEntries(POSES.map((p) => [p.id, p]));
 export const WALK_MAP = Object.fromEntries(WALKS.map((w) => [w.id, w]));
-export const MAX_POSES = 3;
+export const MAX_POSES = 5;
 export const PRAYER_MAX = 140;
 
 export const PRAYER_STARTERS = [
@@ -284,6 +289,7 @@ export function sanitizeOutfit(o, owned, unlockAll) {
   const okItem = (id, cat) => {
     const it = ITEM_MAP[id];
     if (!it || it.cat !== cat) return false;
+    if (!fitsBody(it, out.body)) return false;
     return it.price === 0 || isOwned(id, owned, unlockAll);
   };
   out.tunic = okItem(o.tunic, 'tunic') ? o.tunic : d.tunic;
@@ -301,7 +307,7 @@ export function sanitizeOutfit(o, owned, unlockAll) {
   const walkOk = WALK_MAP[o.walk] && (WALK_MAP[o.walk].price === 0 || isOwned(`walk:${o.walk}`, owned, unlockAll));
   out.walk = walkOk ? o.walk : 'march';
   out.poses = (Array.isArray(o.poses) ? o.poses : []).filter((p) => POSE_MAP[p] && (POSE_MAP[p].price === 0 || isOwned(`pose:${p}`, owned, unlockAll))).slice(0, MAX_POSES);
-  if (!out.poses.length) out.poses = ['standfirm'];
+  // an empty pose list is allowed: the team just walks and stands
   return out;
 }
 

@@ -91,7 +91,7 @@ export class Stage {
       this.thumbRT = new THREE.WebGLRenderTarget(size, size, { samples: 4 });
       this.thumbRT.texture.colorSpace = THREE.SRGBColorSpace;
     }
-    const o = defaultOutfit(/-g\d/.test(itemId) || item.look.kind === 'dress' ? 'girl' : 'boy');
+    const o = defaultOutfit(item.body || (/-g\d/.test(itemId) || item.look.kind === 'dress' ? 'girl' : 'boy'));
     o.tunic = item.cat === 'tunic' ? itemId : null;
     const showBody = item.cat === 'tunic';
     if (item.cat === 'acc') o.acc = [itemId];

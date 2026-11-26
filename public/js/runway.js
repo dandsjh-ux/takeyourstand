@@ -12,9 +12,9 @@ export function timeline(entry, T) {
   const dist = END_Z - START_Z;
   let walkDur = dist / walkSpeed(o.walk);
   walkDur = Math.min(Math.max(walkDur, 5.5), T * 0.46);
-  const poses = o.poses?.length ? o.poses : ['standfirm'];
+  const poses = o.poses?.length ? o.poses : []; // none chosen: walk, then stand
   const poseStart = walkDur + 0.2;
-  const poseDur = Math.max(2.2, (T - poseStart - 0.4) / poses.length);
+  const poseDur = Math.max(2.2, (T - poseStart - 0.4) / Math.max(1, poses.length));
   return { walkDur, poses, poseStart, poseDur, T };
 }
 
@@ -357,7 +357,7 @@ export class Runway {
     if (phase === 'walk') this.anim.set('walk', { style: e.outfit.walk });
     else if (phase === 'pose') {
       const idx = Math.min(tl.poses.length - 1, Math.floor((t - tl.poseStart) / tl.poseDur));
-      if (t < tl.poseStart) this.anim.set('idle');
+      if (t < tl.poseStart || !tl.poses.length) this.anim.set('idle');
       else this.anim.set('pose', { id: tl.poses[Math.max(0, idx)], idx });
       if (!this.burstDone) { this.burstDone = true; this.burst(new THREE.Vector3(0, 0, END_Z)); }
     } else this.anim.set('idle');

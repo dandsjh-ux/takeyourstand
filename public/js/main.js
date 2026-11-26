@@ -3,7 +3,7 @@ import { Stage } from './stage.js';
 import { Studio } from './studio.js';
 import { Runway, timeline } from './runway.js';
 import {
-  CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, EYE_COLORS, HAIR_STYLES, hairFor, POSES, WALKS, POSE_MAP, WALK_MAP,
+  CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, EYE_COLORS, HAIR_STYLES, hairFor, fitsBody, itemsForBody, POSES, WALKS, POSE_MAP, WALK_MAP,
   MAX_POSES, PRAYER_MAX, PRAYER_STARTERS, ARMOR_SLOTS, defaultOutfit, priceFor, armorCount,
 } from './catalog.js';
 import { $, $$, h, toast, modal, closeModal, modalOpen, fmtTime, unlockAudio, sfx } from './ui.js';
@@ -384,7 +384,7 @@ function renderPanel() {
   const kids = [];
   if (cat === 'me') {
     kids.push(h('div.section-label', 'Style'),
-      h('div.seg', ...['boy', 'girl'].map((b) => h('button', { class: o.body === b ? 'on' : '', on: { click: () => { S.body = b; LS.set('tys_body', b); setOutfit({ body: b, tunic: o.tunic && ITEM_MAP[o.tunic].price === 0 ? defaultOutfit(b).tunic : o.tunic, hair: hairFor(b).some((x) => x.id === o.hair) ? o.hair : defaultOutfit(b).hair }); } } }, b === 'boy' ? '🧒🏽 Boy' : '👧🏽 Girl'))));
+      h('div.seg', ...['boy', 'girl'].map((b) => h('button', { class: o.body === b ? 'on' : '', on: { click: () => { S.body = b; LS.set('tys_body', b); setOutfit({ body: b, tunic: o.tunic && ITEM_MAP[o.tunic].price === 0 && fitsBody(ITEM_MAP[o.tunic], b) ? o.tunic : defaultOutfit(b).tunic, shoes: o.shoes && fitsBody(ITEM_MAP[o.shoes], b) ? o.shoes : null, hair: hairFor(b).some((x) => x.id === o.hair) ? o.hair : defaultOutfit(b).hair }); } } }, b === 'boy' ? '🧒🏽 Boy' : '👧🏽 Girl'))));
     kids.push(h('div.section-label', 'Skin tone'),
       h('div.swatches', ...SKIN_TONES.map((c, i) => h('button.sw', { class: o.skin === i ? 'on' : '', style: { background: c }, 'aria-label': `Skin tone ${i + 1}`, on: { click: () => setOutfit({ skin: i }) } }))));
     kids.push(h('div.section-label', 'Hair style'),
@@ -396,7 +396,7 @@ function renderPanel() {
     const team = myTeam();
     if (team) kids.push(h('div.section-label', 'Your team'), teamChip(team));
   } else if (cat === 'tunic' || ARMOR_SLOTS.includes(cat)) {
-    const list = sortItems(ITEMS.filter((i) => i.cat === cat));
+    const list = sortItems(itemsForBody(cat, o.body));
     const cards = [];
     if (cat !== 'tunic') cards.push(h('button.item.none', { class: !o[cat] ? 'on' : '', on: { click: () => setOutfit({ [cat]: null }) } }, h('span.big-ico', '∅'), h('span.nm', 'None')));
     for (const it of list) cards.push(itemCard(it, o[cat] === it.id, pickItem));
@@ -443,9 +443,11 @@ function renderPanel() {
     kids.push(h('div.seq', ...Array.from({ length: MAX_POSES }, (_, i) => {
       const p = POSE_MAP[seq[i]];
       return p
-        ? h('div.slot.filled', h('span.n', i + 1), h('span.si', p.icon), p.name, seq.length > 1 ? h('button.x', { 'aria-label': 'Remove', on: { click: () => setOutfit({ poses: seq.filter((_, k) => k !== i) }) } }, '✕') : null)
+        ? h('div.slot.filled', h('span.n', i + 1), h('span.si', p.icon), p.name, h('button.x', { 'aria-label': 'Remove', on: { click: () => setOutfit({ poses: seq.filter((_, k) => k !== i) }) } }, '✕'))
         : h('div.slot', h('span.n', i + 1), h('span.si', '＋'), 'Tap a pose');
     })));
+    kids.push(h('div.seq-tools', h('span.muted', seq.length ? `${seq.length} of ${MAX_POSES} poses chosen` : 'No poses yet. You will walk, then stand.'),
+      seq.length ? h('button.chip', { on: { click: () => { sfx.tap(); clearTimeout(previewTimer); studio.animator?.set('idle'); setOutfit({ poses: [] }); } } }, '🗑 Clear all poses') : null));
     kids.push(h('div.section-label', 'Poses — tap to preview & add'));
     kids.push(h('div.grid', ...POSES.map((p) => {
       const unlocked = isUnlocked('pose', p.id);
