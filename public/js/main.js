@@ -714,8 +714,8 @@ function renderVote(entry) {
       });
     } } }, '⭐'));
     const mine = S.role === 'host' ? null : S.room.players.find((p) => p.id === S.me?.playerId);
-    v.replaceChildren(h('h3', `How well did ${entry.name} put on the armor?`), h('div.stars', ...stars), thanks,
-      mine && mine.role !== 'judge' && (mine.members || 1) > 1 ? h('div.muted', `Your team's stars count ×${mine.members}`) : null);
+    v.replaceChildren(...[h('h3', `How well did ${entry.name} put on the armor?`), h('div.stars', ...stars), thanks,
+      mine && mine.role !== 'judge' && (mine.members || 1) > 1 ? h('div.muted', `Your team's stars count ×${mine.members}`) : null].filter(Boolean));
   }
   requestAnimationFrame(updateInsets);
 }
