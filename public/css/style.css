@@ -351,7 +351,17 @@ h1 { font-family: 'Cinzel', serif; font-weight: 800; font-size: clamp(2rem, 9vw,
   .coins .plus { width: 19px; height: 19px; font-size: 0.85rem; }
   .topbar .who { padding: 6px 10px; font-size: 0.9rem; max-width: 46vw; }
   .banner { left: 8px; right: 8px; padding: 8px 10px; font-size: 0.84rem; top: calc(54px + var(--safe-t)); }
+  .show-top { padding-left: 8px; padding-right: 8px; }
+  .show-top .pill { padding: 6px 10px; font-size: 0.85rem; }
+  .show-title { font-size: 0.78rem; }
+  .namecard { left: 8px; padding: 8px 12px; border-left-width: 6px; }
+  .namecard .nm { font-size: 1.12rem; }
+  .vote { left: 8px; right: 8px; padding: 10px 10px; }
+  .star { font-size: 2.05rem; }
+  .rank-row { grid-template-columns: 28px 1fr auto; gap: 6px; padding: 8px 4px; }
+  .podium-label { font-size: 0.75rem; padding: 3px 8px; }
 }
+.show-top .pill { white-space: nowrap; }
 @media (max-height: 700px) {
   .banner .team-pick { display: none; } /* the Me tab already shows the team */
 }
