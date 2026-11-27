@@ -102,7 +102,10 @@ function updateInsets() {
     document.documentElement.style.setProperty('--drawer-px', `${window.innerHeight - d.top}px`);
   } else if (S.lastScreen === 'show') {
     const panel = !$('#results').classList.contains('hidden') ? $('#results') : !$('#vote').classList.contains('hidden') ? $('#vote') : null;
-    stage.setInsets(50, panel ? window.innerHeight - panel.getBoundingClientRect().top : 0, 0, 0);
+    const nc = $('#namecard');
+    const results = !$('#results').classList.contains('hidden');
+    const top = results ? 84 : nc.classList.contains('hidden') ? 50 : Math.max(50, nc.getBoundingClientRect().bottom + 6);
+    stage.setInsets(top, panel ? window.innerHeight - panel.getBoundingClientRect().top : 0, 0, 0);
   }
 }
 window.addEventListener('resize', () => setTimeout(updateInsets, 50));
@@ -678,7 +681,10 @@ function tickShow() {
     if (!intro) { intro = h('div.intro-card#intro'); $('#show').append(intro); }
     intro.replaceChildren(h('div.eyebrow', 'Next on the runway'), h('div.nm', entry.name), h('div.muted', `👥 ${team.members} player${team.members === 1 ? '' : 's'}`));
   } else intro?.remove();
-  $('#namecard').classList.toggle('hidden', t < 0);
+  if ($('#namecard').classList.contains('hidden') !== (t < 0)) {
+    $('#namecard').classList.toggle('hidden', t < 0);
+    requestAnimationFrame(updateInsets);
+  }
 
   // prayer bubble with typewriter
   const sp = $('#speech');
@@ -741,7 +747,9 @@ function showResults(st) {
   $('#speech').classList.add('hidden');
   const myId = S.me?.playerId;
   const box = $('#results');
-  box.replaceChildren(...[
+  // the list scrolls inside an inner wrapper (like the dressing-room drawer): a scrolling, rounded
+  // panel over the WebGL canvas can blank out the 3D podium on some browsers
+  box.replaceChildren(h('div.results-scroll', ...[
     h('h2', '🏆 The Armor of God Awards'),
     h('p.muted.rank-note', 'Star points = stars × each voter\'s weight, so bigger teams and the teacher add more.'),
     ...r.scores.map((s, i) => {
@@ -752,17 +760,25 @@ function showResults(st) {
         h('span.sc', h('b', fmtPoints(s.total)), h('small', ' pts')));
     }),
     S.role === 'host' ? h('div.modal-actions', h('button.btn.primary', { on: { click: () => socket.emit('host:again') } }, 'Play another round')) : h('p.muted', { style: { textAlign: 'center' } }, 'Great job standing firm! 🙌'),
-  ].filter(Boolean));
+  ].filter(Boolean)));
   box.classList.remove('hidden');
   $('#show-progress').textContent = 'Results';
-  requestAnimationFrame(updateInsets);
+  requestAnimationFrame(() => { updateInsets(); runway.fitPodium(); });
   podiumLabels = r.scores.slice(0, 3).map((s, i) => { const el = h('div.podium-label', `${['🥇', '🥈', '🥉'][i]} ${s.name} · ${fmtPoints(s.total)}`); $('#show').append(el); return el; });
 }
 let podiumLabels = [];
 function placePodiumLabels() {
+  const placed = [];
   podiumLabels.forEach((el, i) => {
     const p = runway.podiumScreen(i);
-    if (p) { el.style.left = `${p.x}px`; el.style.top = `${p.y}px`; }
+    if (!p) return;
+    const w = el.offsetWidth, hgt = el.offsetHeight;
+    const x = Math.min(window.innerWidth - w / 2 - 4, Math.max(w / 2 + 4, p.x));
+    let y = p.y;
+    // narrow screens: drop a label below any higher-ranked label it would overlap
+    for (const q of placed) if (Math.abs(q.x - x) < (q.w + w) / 2 + 4 && Math.abs(q.y - y) < hgt + 4) y = q.y + hgt + 4;
+    el.style.left = `${x}px`; el.style.top = `${y}px`;
+    placed.push({ x, y, w });
   });
 }
 function clearPodiumLabels() { podiumLabels.forEach((e) => e.remove()); podiumLabels = []; }

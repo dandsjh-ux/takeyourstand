@@ -336,6 +336,8 @@ export class Runway {
 
     const k = 1 - Math.exp(-dt * 3);
     this.camera.position.lerp(this.camGoal || this.camPos, k);
+    // on slow devices the eased camera can fall behind the walker; never let them fill the screen
+    if (this.mode === 'present' && this.minCamZ != null && this.camera.position.z < this.minCamZ) this.camera.position.z = this.minCamZ;
     this.camTarget.lerp(this.camTargetGoal || this.camTarget, k);
     this.camera.lookAt(this.camTarget);
     this.onFrame?.();
@@ -375,10 +377,12 @@ export class Runway {
       const d = this.stage.fitDistance(this.camera, 2.55, 1.7);
       this.camGoal = new THREE.Vector3(Math.sin(ang) * d, 1.4, END_Z + Math.cos(ang) * d);
       this.camTargetGoal = new THREE.Vector3(0, 1.05, END_Z);
+      this.minCamZ = null;
     } else {
       // tracking shot: dolly backwards in front of the walker
       const d = this.stage.fitDistance(this.camera, 3.2, 2.2);
       this.camGoal = new THREE.Vector3(0.0, 1.6, z + d);
+      this.minCamZ = phase === 'walk' ? z + d * 0.8 : null;
       this.camTargetGoal = new THREE.Vector3(0, 1.0, z);
       if (phase === 'intro') { this.camGoal.set(0, 1.9, START_Z + d + 1.5); this.camTargetGoal.set(0, 1.4, START_Z); }
     }
@@ -418,10 +422,15 @@ export class Runway {
       this.podiumChars.push({ char: c, anim: a });
     });
     this.burst(new THREE.Vector3(0, 0.5, END_Z));
-    const d = this.stage.fitDistance(this.camera, 2.9, 3.3);
+    this.fitPodium();
+    this.camera.position.copy(this.camGoal).add(new THREE.Vector3(0, 1, 3));
+  }
+  // frame the podium in the area left visible by the results list (call again after insets change)
+  fitPodium() {
+    if (this.mode !== 'podium') return;
+    const d = this.stage.fitDistance(this.camera, 2.9, 3.7);
     this.camGoal = new THREE.Vector3(0, 1.5, END_Z + d);
     this.camTargetGoal = new THREE.Vector3(0, 1.25, END_Z);
-    this.camera.position.copy(this.camGoal).add(new THREE.Vector3(0, 1, 3));
   }
   updatePodium(dt) {
     for (const p of this.podiumChars) p.anim.update(dt);
