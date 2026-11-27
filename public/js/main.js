@@ -6,6 +6,7 @@ import {
   CATEGORIES, ITEMS, ITEM_MAP, SKIN_TONES, HAIR_COLORS, EYE_COLORS, HAIR_STYLES, hairFor, fitsBody, itemsForBody, POSES, WALKS, POSE_MAP, WALK_MAP,
   MAX_POSES, PRAYER_MAX, PRAYER_STARTERS, ARMOR_SLOTS, defaultOutfit, priceFor, armorCount,
 } from './catalog.js';
+import { teamWeights, votePoints, fmtPoints } from './scoring.js';
 import { $, $$, h, toast, modal, closeModal, modalOpen, fmtTime, unlockAudio, sfx } from './ui.js';
 import { createHost } from './host.js';
 
@@ -91,7 +92,9 @@ function showScreen(id) {
 
 function updateInsets() {
   if (S.lastScreen === 'play') {
-    const top = $('.topbar').getBoundingClientRect().bottom;
+    let top = $('.topbar').getBoundingClientRect().bottom;
+    const banner = $('#lobby-banner');
+    if (!banner.classList.contains('hidden')) top = Math.max(top, banner.getBoundingClientRect().bottom);
     const d = $('#drawer').getBoundingClientRect();
     const wide = d.width < window.innerWidth * 0.8;
     if (wide) stage.setInsets(top, 0, 0, d.width);
@@ -289,7 +292,9 @@ function onState(st) {
       modal(h('h3', 'Time to suit up! 🛡️'), h('p', 'Pick your clothes and put on every piece of the Armor of God. Answer Bible questions to earn coins and unlock more styles!'),
         h('div.modal-actions', h('button.btn.primary', { on: { click: closeModal } }, 'Let\'s go!')));
     }
+    const bannerWas = $('#lobby-banner').classList.contains('hidden');
     $('#lobby-banner').classList.toggle('hidden', st.phase !== 'lobby');
+    if (bannerWas !== (st.phase !== 'lobby')) requestAnimationFrame(updateInsets);
     renderTeamInfo();
     renderTabs();
     const teamSig = me ? `${me.name}|${me.members}` : '';
@@ -703,19 +708,25 @@ function renderVote(entry) {
     v.replaceChildren(h('h3', '🌟 You\'re on the runway!'), h('div.muted', 'Everyone is watching your armor. Stand firm!'));
   } else {
     const cur = S.myVotes[entry.id] || 0;
-    const thanks = h('div.thanks', cur ? 'Vote saved — you can change it.' : '');
+    // tell the voter how many star points their vote is worth (stars × their team's weight)
+    const savedText = (n) => {
+      const voter = S.role === 'host' ? { id: 'host', isHost: true } : S.room.players.find((p) => p.id === myId);
+      const pts = voter ? votePoints(n, voter, entry, teamWeights(S.room.players, S.room.settings?.voting), S.room.settings?.voting) : n;
+      return `${n >= 4 ? 'Amazing! ' : ''}Vote saved: +${fmtPoints(pts)} star points`;
+    };
+    const thanks = h('div.thanks', cur ? savedText(cur) : '');
     const stars = [1, 2, 3, 4, 5].map((n) => h('button.star', { class: n <= cur ? 'on' : '', 'aria-label': `${n} stars`, on: { click: () => {
       socket.emit('vote', { presenterId: entry.id, stars: n }, (r) => {
         if (!r?.ok) return toast('Voting for this one is closed.');
         S.myVotes[entry.id] = n; sfx.star();
         SS.set(`tys_votes:${S.code}:${S.room?.round}`, S.myVotes);
         stars.forEach((s, i) => s.classList.toggle('on', i < n));
-        thanks.textContent = n >= 4 ? 'Amazing! Vote saved.' : 'Vote saved — you can change it.';
+        thanks.textContent = savedText(n);
       });
     } } }, '⭐'));
     const mine = S.role === 'host' ? null : S.room.players.find((p) => p.id === S.me?.playerId);
     v.replaceChildren(...[h('h3', `How well did ${entry.name} put on the armor?`), h('div.stars', ...stars), thanks,
-      mine && mine.role !== 'judge' && (mine.members || 1) > 1 ? h('div.muted', `Your team's stars count ×${mine.members}`) : null].filter(Boolean));
+      mine && mine.role !== 'judge' && (mine.members || 1) > 1 ? h('div.muted', `Your team has ${mine.members} players, so each star counts ×${mine.members}`) : null].filter(Boolean));
   }
   requestAnimationFrame(updateInsets);
 }
@@ -732,19 +743,20 @@ function showResults(st) {
   const box = $('#results');
   box.replaceChildren(...[
     h('h2', '🏆 The Armor of God Awards'),
+    h('p.muted.rank-note', 'Star points = stars × each voter\'s weight, so bigger teams and the teacher add more.'),
     ...r.scores.map((s, i) => {
       return h('div.rank-row', { class: s.id === myId ? 'me' : '' },
         h('span.rk', ['🥇', '🥈', '🥉'][i] || i + 1),
         h('div', h('div.nm', h('span.team-dot', { style: { background: s.color, marginRight: '6px' } }), s.name),
-          h('div.sub', `👥 ${s.members || 1} · ${s.votes} vote${s.votes === 1 ? '' : 's'}${s.fullArmor ? ' · 🛡️ full armor' : ''}${s.outfit.prayer ? ' · 🙏' : ''}`)),
-        h('span.sc', `★ ${s.total.toFixed(2)}`));
+          h('div.sub', `👥 ${s.members || 1} · ${s.votes} vote${s.votes === 1 ? '' : 's'} · avg ${(s.stars || 0).toFixed(1)}★${s.fullArmor ? ' · 🛡️' : ''}${s.outfit.prayer ? ' · 🙏' : ''}`)),
+        h('span.sc', h('b', fmtPoints(s.total)), h('small', ' pts')));
     }),
     S.role === 'host' ? h('div.modal-actions', h('button.btn.primary', { on: { click: () => socket.emit('host:again') } }, 'Play another round')) : h('p.muted', { style: { textAlign: 'center' } }, 'Great job standing firm! 🙌'),
   ].filter(Boolean));
   box.classList.remove('hidden');
   $('#show-progress').textContent = 'Results';
   requestAnimationFrame(updateInsets);
-  podiumLabels = r.scores.slice(0, 3).map((s, i) => { const el = h('div.podium-label', `${['🥇', '🥈', '🥉'][i]} ${s.name}`); $('#show').append(el); return el; });
+  podiumLabels = r.scores.slice(0, 3).map((s, i) => { const el = h('div.podium-label', `${['🥇', '🥈', '🥉'][i]} ${s.name} · ${fmtPoints(s.total)}`); $('#show').append(el); return el; });
 }
 let podiumLabels = [];
 function placePodiumLabels() {

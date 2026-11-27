@@ -7,15 +7,15 @@ Teams join on a shared phone or tablet, dress a 3D character in each piece of th
 ## How a game runs
 
 1. **Teacher** opens the site and taps **"I'm the teacher — host a game"**. A 4-letter code and a QR code appear. Put this screen on a projector if you have one.
-2. **Each team** scans the QR code on its device (or goes to the site and types the code), types its **team name** (there are idea buttons) and picks a Boy or Girl character. In the lobby they design their look: skin tone, hairstyle (boys and girls each have their own cuts), hair colour and eye colour.
+2. **Each team** scans the QR code on its device (or goes to the site and types the code), types its **team name** (there are idea buttons) and picks a Boy or Girl character. In the lobby they design their look: skin tone, hairstyle (boys and girls each have their own cuts), hair colour and eye colour. Boys get tunics and girls get dresses, and each has its own set of sandals; everything else is shared.
    The teacher sets **how many players are in each team** with the 👥 − / + stepper in the Teams tab. That number is the team's star multiplier.
 3. The teacher taps **Start styling**. The timer starts (5 minutes by default). Students:
    - work through the tabs: Tunic → **Belt of Truth → Breastplate of Righteousness → Shoes of the Gospel of Peace → Shield of Faith → Helmet of Salvation → Sword of the Spirit** → Bonus → Prayer → Runway. The camera zooms to the body part each tab dresses. Pinch to zoom, drag to turn, double-tap to reset.
    - tap the **🪙 coin button** to answer Bible questions and earn coins
    - spend coins on locked items. Each category has **3 free styles**; everything else, including the bonus wardrobe, walks and most poses, is locked.
    - type a **prayer**, which pops up in a speech bubble on the runway (Ephesians 6:18 replaces a "prayer" armor piece)
-   - pick a **runway walk** and up to **3 poses**, then tap **I'm ready**.
-4. When time runs out (or the teacher taps **Start runway**), each team's character walks the runway in turn. Everyone else rates them 1–5 ⭐ on their own device. The teacher can pause, replay, skip or finish early.
+   - pick a **runway walk** and up to **5 poses** (or none: tap ✕ or **Clear all poses** to start from blank), then tap **I'm ready**.
+4. When time runs out (or the teacher taps **Start runway**), each team's character walks the runway in turn. Everyone else rates them 1–5 ⭐ on their own device. Each vote earns star points (stars × the voter's weight), so a big team's 5★ counts for more than a small team's. The teacher can pause, replay, skip or finish early.
 5. **Results:** the top three teams appear on a podium above a full leaderboard. Tap **Play another round** to go again with the same players.
 
 ## Host settings
@@ -25,17 +25,22 @@ Teams join on a shared phone or tablet, dress a 3D character in each piece of th
 | **Teams** | Every device that joined. Set **players per team** (1–30) with the stepper; each row shows how much that team's stars count. You can also rename a team, switch a device to **Teacher (judge)** (votes with extra weight, doesn't walk), give coins, or remove a team |
 | **Game** | Styling time, runway seconds per team, coins per correct answer, starting coins, shop price multiplier, **unlock everything** (free-play) |
 | **Questions** | Upload a CSV (replace the list or add to it), download a template or the current list, write questions by hand, delete questions, reset to the built-in Armor of God set |
-| **Voting** | Weight per player in a team (×1), host weight (×10), **Keep my vote the highest** (on by default), judge weight (×4), full-armor bonus, prayer bonus. A **live table** shows each voter's share of the voting power as teams join |
+| **Voting** | Weight per player in a team (×1), host weight (×10), **Keep my vote the highest** (on by default), judge weight (×4), full-armor bonus, prayer bonus. A **live table** shows each voter's weight, what their 5★ vote adds and their share of the voting power as teams join |
 
 During styling the **Progress** tab shows each team's armor count, coins, quiz record, ready status and prayer. You can clear an inappropriate prayer there. A basic word filter also runs on names and prayers.
 
 ### How scoring works
 
-A presenter's score is the **weighted average** of the stars they received, plus bonuses (default: +0.5 for wearing all six armor pieces and +0.25 for writing a prayer).
+Scores are **star points**. Every vote adds `stars × the voter's weight`, so a heavier vote pushes a score further instead of just nudging an average:
 
-A team's vote counts `players in the team × weight per player`. For example, a team of 5 counts ×5 and a team of 2 counts ×2. The host counts ×10, and with **Keep my vote the highest** on, the host's vote is raised to stay just above the biggest team. Helper teachers count ×4. Teams can't vote for themselves.
+- A team's weight is `players in the team × weight per player`. A team of 5 giving 5★ adds **25 points**; a team of 1 giving 5★ adds **5 points**.
+- The host counts ×10. With **Keep my vote the highest** on, the host's weight is raised to stay just above the biggest team. Helper teachers count ×4.
+- Teams can't vote for themselves. To keep that fair, each team's points are scaled by `all voting power ÷ voting power that could vote for it`. Every team can then reach the same top score, and a big team isn't penalised for its own missing vote.
+- Bonuses count as extra stars from every voter. By default that's +0.5★ for wearing all six armor pieces and +0.25★ for writing a prayer, each multiplied by the total voting power.
 
-Example: a team of 3 gives 5★, a team of 1 gives 1★, a judge gives 3★ and the host gives 4★. The score is (3×5 + 1×1 + 4×3 + 10×4) ÷ (3+1+4+10) = 3.78★, plus any bonuses.
+Example: teams of 5, 1, 1 and 1 plus the host (×10) give a total voting power of 18, so the top score is 90 points before bonuses. One small team receives 5★ from the team of 5 and 4★ from the host. That's 25 + 40 = 65 points, scaled by 18 ÷ 17 to **≈ 69 points**. If the 5★ had come from a team of 1 instead, the total would be 5 + 40 = 45, scaled to ≈ 48.
+
+The results list shows each team's points with its average star rating alongside. After voting, each voter sees how many points their vote added. The **Voting** tab's live table shows what a 5★ vote from each voter adds.
 
 ## Dropping out and rejoining
 
@@ -109,4 +114,4 @@ public/
     ui.js                 DOM helpers and synthesised sound effects
 ```
 
-All 3D models are built in code; there are no model files to load. Materials use generated textures: linen weave, leather grain, wood grain, hammered metal, braided rope, skin, hair strands and curls, a natural hairline, and iris detail. Characters blink, and sandal straps are shaped to the foot. The wardrobe follows the three reference packs (6 masculine and 6 feminine designs per armor category, plus the biblical bonus wardrobe). Extra designs added for variety include Galilee Fisher and Shepherd tunics, Lydia's purple gown and shawl, a golden cord belt, a Dove of Peace breastplate, Sunrise sandals, an Ichthys shield, a Morning Star helmet, a Scroll of the Word sword, a shepherd's fleece and headscarf, David's lyre, an oil lamp, a dove and Miriam's tambourine. There are also 12 hair styles, 8 skin tones, 7 hair colours, 4 walks and 12 poses.
+All 3D models are built in code; there are no model files to load. Materials use generated textures: linen weave, leather grain, wood grain, hammered metal, braided rope, skin, hair strands and curls, a natural hairline, and iris detail. Characters blink, and sandal straps are shaped to the foot. The wardrobe follows the three reference packs (6 masculine and 6 feminine designs per armor category, plus the biblical bonus wardrobe). Extra designs added for variety include Galilee Fisher and Shepherd tunics, Lydia's purple gown and shawl, a golden cord belt, a Dove of Peace breastplate, Sunrise sandals, an Ichthys shield, a Morning Star helmet, a Scroll of the Word sword, a shepherd's fleece and headscarf, David's lyre, an oil lamp, a dove and Miriam's tambourine. There are also 17 hair styles, 8 skin tones, 7 hair colours, 6 eye colours, 4 walks and 12 poses (up to 5 per runway turn).

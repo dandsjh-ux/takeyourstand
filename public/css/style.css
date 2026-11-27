@@ -220,7 +220,10 @@ h1 { font-family: 'Cinzel', serif; font-weight: 800; font-size: clamp(2rem, 9vw,
 .rank-row .rk { font-family: 'Cinzel', serif; font-weight: 800; font-size: 1.1rem; text-align: center; }
 .rank-row .nm { font-weight: 900; }
 .rank-row .sub { font-size: 0.75rem; color: var(--ink2); font-weight: 700; }
-.rank-row .sc { font-weight: 900; font-variant-numeric: tabular-nums; }
+.rank-row .sc { font-weight: 900; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.rank-row .sc b { font-size: 1.15rem; }
+.rank-row .sc small { font-size: 0.7rem; color: var(--ink2); }
+.rank-note { font-size: 0.75rem; text-align: center; margin: 0 0 6px; }
 .rank-row.me { background: #fbefdc; border-radius: 12px; }
 .team-bars { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 14px; }
 .team-bar { display: grid; grid-template-columns: 90px 1fr 50px; gap: 8px; align-items: center; font-weight: 800; font-size: 0.85rem; }
@@ -339,3 +342,16 @@ h1 { font-family: 'Cinzel', serif; font-weight: 800; font-size: clamp(2rem, 9vw,
 .stepper { display: inline-flex; align-items: center; gap: 4px; background: #fbefdc; border: 2px solid var(--line); border-radius: 999px; padding: 2px; }
 .stepper .btn.small { min-height: 30px; padding: 2px 10px; }
 .stepper .sv { font-weight: 900; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ---------- small phones */
+@media (max-width: 380px) {
+  .topbar { padding-left: 8px; padding-right: 8px; gap: 6px; }
+  .topbar .pill { padding: 6px 9px; gap: 4px; }
+  .timer b, .coins b { font-size: 0.95rem; }
+  .coins .plus { width: 19px; height: 19px; font-size: 0.85rem; }
+  .topbar .who { padding: 6px 10px; font-size: 0.9rem; max-width: 46vw; }
+  .banner { left: 8px; right: 8px; padding: 8px 10px; font-size: 0.84rem; top: calc(54px + var(--safe-t)); }
+}
+@media (max-height: 700px) {
+  .banner .team-pick { display: none; } /* the Me tab already shows the team */
+}

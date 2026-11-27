@@ -29,7 +29,7 @@ export const POSE_FNS = {
   shieldup: (t) => ({
     ...LEGS_APART, ...SHIELD_FRONT,
     uArmR: R(-0.2, 0, -0.55), fArmR: R(-1.2, 0, 0), handR: R(-0.55, -0.5, -0.1),
-    thighL: R(-0.25, 0, 0.12), shinL: R(0.2, 0, 0), thighR: R(0.12, 0, -0.12),
+    thighL: R(-0.08, 0, 0.12), shinL: R(0.1, 0, 0), thighR: R(0.08, 0, -0.12),
     torso: R(0.05, -0.15, 0), head: R(0, 0.1, 0),
   }),
   wave: (t) => ({
@@ -49,8 +49,9 @@ export const POSE_FNS = {
     head: R(-0.3, 0, 0), torso: R(-0.06, 0, Math.sin(t * 1.6) * 0.06), hips: R(0, 0, -Math.sin(t * 1.6) * 0.03),
   }),
   prayer: (t) => ({
-    uArmL: R(-0.55, 0, 0.35), fArmL: R(-1.75, 0.2, -0.55), handL: R(0, 0, -0.4),
-    uArmR: R(-0.55, 0, -0.35), fArmR: R(-1.75, -0.2, 0.55), handR: R(1.4, 0, 0.4),
+    // hands meet in front of the chest; the shield stays upright on the arm and the sword points up
+    uArmL: R(-0.18, -0.01, -0.11), fArmL: R(-1.5, 0.86, -0.68), handL: R(0, 0, -0.4),
+    uArmR: R(-0.4, -0.1, -0.18), fArmR: R(-1.76, -0.42, 0.85), handR: R(0.2, 0.03, -1.23),
     head: R(0.35 - ease(t / 2.5) * 0.25, 0, 0), torso: R(0.08 + breathe(t), 0, 0),
   }),
   pointup: (t) => ({
@@ -79,18 +80,19 @@ export const POSE_FNS = {
     };
   },
   hero: (t) => ({
-    thighL: R(-0.35, 0, 0.22), shinL: R(0.35, 0, 0), footL: R(0, 0, -0.2),
-    thighR: R(0.25, 0, -0.22), shinR: R(0.15, 0, 0), footR: R(-0.2, 0, 0.2),
-    hipsY: -0.04, ...SHIELD_FRONT,
+    thighL: R(-0.03, 0, 0.19), shinL: R(0.06, 0, 0), footL: R(-0.03, 0, -0.19),
+    thighR: R(0.04, 0, -0.19), shinR: R(0.05, 0, 0), footR: R(-0.09, 0, 0.19),
+    hipsY: -0.035, ...SHIELD_FRONT,
     uArmR: R(0.2, 0, -1.3), fArmR: R(-0.9, 0, 0.3), handR: R(-0.7, -0.5, -1.75),
     torso: R(0, -0.25, 0), head: R(-0.05, 0.25, 0),
   }),
   kneel: (t) => {
     const k = ease(Math.min(1, t / 0.8));
     return {
-      hipsY: -0.42 * k,
-      thighL: R(-1.45 * k, 0, 0.08), shinL: R(1.45 * k, 0, 0), footL: R(0, 0, -0.08),
-      thighR: R(0.12 * k, 0, -0.05), shinR: R(1.5 * k, 0, 0), footR: R(0.6 * k, 0, 0.05),
+      // both knees on the ground (legs stay under tunics and long dresses), shins behind
+      hipsY: -0.4 * k,
+      thighL: R(0.04 * k, 0, 0.06), shinL: R(1.52 * k, 0, 0), footL: R(0.9 * k, 0, -0.04),
+      thighR: R(0.04 * k, 0, -0.06), shinR: R(1.52 * k, 0, 0), footR: R(0.9 * k, 0, 0.04),
       uArmR: R(-0.6, 0, -0.15), fArmR: R(-0.6, 0, 0), handR: R(0.9, 0, 0),
       uArmL: R(-0.3, 0, 0.45), fArmL: R(-0.6, 0.3, -0.6),
       head: R(t > 1.8 ? -0.15 : 0.35 * k, 0, 0), torso: R(0.05, 0, 0),

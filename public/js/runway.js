@@ -7,14 +7,18 @@ import { toScreen } from './studio.js';
 
 const START_Z = -20.5, END_Z = 0.55;
 
+// Walk, then each chosen pose in turn. The walk shortens when needed so every pose
+// (up to 5) gets its moment before the team's time is up.
 export function timeline(entry, T) {
   const o = entry.outfit;
   const dist = END_Z - START_Z;
-  let walkDur = dist / walkSpeed(o.walk);
-  walkDur = Math.min(Math.max(walkDur, 5.5), T * 0.46);
-  const poses = o.poses?.length ? o.poses : []; // none chosen: walk, then stand
-  const poseStart = walkDur + 0.2;
-  const poseDur = Math.max(2.2, (T - poseStart - 0.4) / Math.max(1, poses.length));
+  const poses = Array.isArray(o.poses) ? o.poses : []; // none chosen: walk, then stand
+  const n = poses.length;
+  const gap = 0.2, tail = 0.6, wantPose = 2.0;
+  let walkDur = Math.min(Math.max(dist / walkSpeed(o.walk), 5.5), T * 0.46);
+  if (n && T - walkDur - gap - tail < n * wantPose) walkDur = Math.max(4.5, T - gap - tail - n * wantPose);
+  const poseStart = walkDur + gap;
+  const poseDur = n ? Math.max(1.2, (T - poseStart - tail) / n) : Math.max(0, T - poseStart);
   return { walkDur, poses, poseStart, poseDur, T };
 }
 

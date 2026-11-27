@@ -216,14 +216,14 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
     const sv = (patch) => send({ voting: patch });
     return [
       h('h3', 'Voting weights'),
-      h('p.muted', 'Every vote is 1–5 stars. A team’s score is the weighted average of the stars it gets, plus bonuses. Teams can’t vote for themselves.'),
+      h('p.muted', 'Every vote is 1–5 stars and earns star points = stars × the voter’s weight. So 5★ from a team of 5 adds 25 points, while 5★ from a team of 1 adds 5. Teams can’t vote for themselves, so each team’s points are scaled up to make up for its own missing vote: every team can reach the same top score.'),
       slider('Each player in a team', v.studentWeight, { min: 0.25, max: 5, step: 0.25, fmt: (x) => `×${x}`, onInput: (x) => sv({ studentWeight: x }), key: 'studentWeight',
         hint: 'A team’s vote counts this much per player — set the number of players for each team in the Teams tab.' }),
       slider('Host (you)', v.hostWeight, { min: 0, max: 40, step: 1, fmt: (x) => `×${x}`, onInput: (x) => sv({ hostWeight: x }), key: 'hostWeight' }),
       toggle('Keep my vote the highest', v.hostAlwaysHighest !== false, (x) => sv({ hostAlwaysHighest: x }), 'If a big team would outweigh you, your vote is raised to stay just above it.'),
       slider('Helper teachers (judges)', v.judgeWeight, { min: 0, max: 40, step: 1, fmt: (x) => `×${x}`, onInput: (x) => sv({ judgeWeight: x }), key: 'judgeWeight' }),
-      slider('Full armor bonus', v.fullArmorBonus, { min: 0, max: 2, step: 0.25, fmt: (x) => `+${x}★`, onInput: (x) => sv({ fullArmorBonus: x }), key: 'fullArmorBonus', hint: 'Added when all six pieces are worn.' }),
-      slider('Prayer bonus', v.prayerBonus, { min: 0, max: 1, step: 0.25, fmt: (x) => `+${x}★`, onInput: (x) => sv({ prayerBonus: x }), key: 'prayerBonus' }),
+      slider('Full armor bonus', v.fullArmorBonus, { min: 0, max: 2, step: 0.25, fmt: (x) => `+${x}★`, onInput: (x) => sv({ fullArmorBonus: x }), key: 'fullArmorBonus', hint: 'When all six pieces are worn: counts as this many extra stars from every voter.' }),
+      slider('Prayer bonus', v.prayerBonus, { min: 0, max: 1, step: 0.25, fmt: (x) => `+${x}★`, onInput: (x) => sv({ prayerBonus: x }), key: 'prayerBonus', hint: 'When a prayer was written: counts as this many extra stars from every voter.' }),
       h('div.section-label', 'Live voting power'),
       h('div#h-wtable'),
     ];
@@ -291,13 +291,15 @@ export function createHost({ socket, S, now, showScreen, LS, SS }) {
       const v = { ...DEFAULT_VOTING, ...st.settings.voting };
       const pct = (x) => (tw.grand ? (x / tw.grand) * 100 : 0);
       const row = (name, n, w, color) => h('tr', h('td', color ? h('span.team-dot', { style: { background: color, marginRight: '6px' } }) : null, name), h('td', n), h('td', `×${+w.toFixed(2)}`),
+        h('td', `${+(5 * w).toFixed(1)}`),
         h('td', h('div.share-bar', h('i', { style: { width: `${pct(w)}%` } })), `${pct(w).toFixed(0)}%`));
       wt.replaceChildren(h('table.wtable',
-        h('tr', h('th', 'Voter'), h('th', 'Players'), h('th', 'Vote'), h('th', 'Share')),
+        h('tr', h('th', 'Voter'), h('th', 'Players'), h('th', 'Vote'), h('th', '5★ adds'), h('th', 'Share')),
         row('Host (you)', '', tw.host),
         tw.judges ? row(`Helper teachers (${tw.judges})`, '', tw.judges * v.judgeWeight) : null,
         ...tw.rows.map((r) => row(r.team.name, r.members, r.weight, r.team.color))),
-      h('p.muted', tw.host > v.hostWeight ? `Your vote was raised to ×${tw.host} so it stays above the biggest team.` : 'Share = each voter’s slice of the total voting power.'));
+      h('p.muted', tw.host > v.hostWeight ? `Your vote was raised to ×${tw.host} so it stays above the biggest team.` : 'Share = each voter’s slice of the total voting power.'),
+        h('p.muted', `Top possible score this round: about ${Math.round((5 + (+v.fullArmorBonus || 0) + (+v.prayerBonus || 0)) * tw.grand)} star points.`));
     }
     // keep sliders in sync if changed elsewhere (e.g. another host tab)
     for (const inp of main.querySelectorAll('input[type=range][data-key]')) {

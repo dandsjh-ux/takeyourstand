@@ -545,8 +545,33 @@ export class Character {
       this.layers[slot] = parts;
       for (const p of parts) (this.j[p.joint] || this.root).add(p.obj);
     }
+    this.findLongSkirts();
     // bare feet visible only without shoes that wrap; sandals keep toes visible
     this.updateHairVisibility();
+  }
+
+  // Long skirts/robes hang from the hips. When the hips drop (kneeling) they would sink into the
+  // floor, so remember how far below the hips each one reaches and shorten it in applyPose.
+  findLongSkirts() {
+    this.longSkirts = [];
+    const hips = this.j.hips;
+    hips.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(hips.matrixWorld).invert();
+    const m = new THREE.Matrix4();
+    const worn = Object.values(this.layers).flat().map((p) => p.obj).filter((o) => o.parent === hips);
+    for (const obj of worn) {
+      if (obj.userData.baseSY == null) obj.userData.baseSY = obj.scale.y;
+      obj.scale.y = obj.userData.baseSY;
+      obj.updateMatrixWorld(true);
+      let minY = Infinity;
+      obj.traverse((o) => {
+        if (!o.isMesh || !o.geometry) return;
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        const b = o.geometry.boundingBox.clone().applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld));
+        minY = Math.min(minY, b.min.y);
+      });
+      if (minY < -0.55) { obj.userData.hemY = minY; this.longSkirts.push(obj); }
+    }
   }
 
   ctx(o, slot) {
@@ -578,6 +603,11 @@ export class Character {
       if (r) j[k].rotation.set(r[0], r[1], r[2]);
     }
     j.hips.position.y = 0.92 + (p.hipsY || 0);
+    // keep long hems at floor level instead of through it
+    for (const o of this.longSkirts || []) {
+      const k = Math.min(1, Math.max(0.3, (0.92 + (p.hipsY || 0) - 0.025) / -o.userData.hemY));
+      o.scale.y = o.userData.baseSY * k;
+    }
     this.root.position.y = (p.rootY || 0) + (this.outfit?.shoes ? 0.018 : 0); // sandals lift the feet by the sole
     this.root.rotation.y = p.rootRotY || 0;
   }
